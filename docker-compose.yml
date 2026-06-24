@@ -1,0 +1,12 @@
+services:
+  nas-movie-wall:
+    build: .
+    container_name: nas-movie-wall
+    restart: unless-stopped
+    environment:
+      PORT: 3000
+      MEDIA_ROOT: /media/movies
+    ports:
+      - "17174:3000"
+    volumes:
+      - /mnt/user/Entertain/Movie:/media/movies:ro
