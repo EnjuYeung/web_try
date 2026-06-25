@@ -1,8 +1,7 @@
 import crypto from "node:crypto";
 import path from "node:path";
-import { access, readdir, readFile } from "node:fs/promises";
-import { constants } from "node:fs";
-import { isMetadataCacheFresh, loadCachedMovieMap, pickCachedMetadata, writeDatabaseCache } from "./metadataCache.js";
+import { readdir, readFile } from "node:fs/promises";
+import { isMetadataCacheFresh, loadCachedMovieMap, loadDatabaseCache, pickCachedMetadata, writeDatabaseCache } from "./metadataCache.js";
 import { readNfo } from "./nfo.js";
 import { attachActorImages, configureTmdbCache } from "./tmdb.js";
 
@@ -13,18 +12,13 @@ const POSTER_PRIORITY = ["poster", "folder", "cover", "movie", "海报"];
 
 export async function loadMovieDatabase({ mediaRoot, mockDbPath, cachePath, tmdbCachePath: configuredTmdbCachePath }) {
   await configureTmdbCache(configuredTmdbCachePath);
-  const canScan = await pathExists(mediaRoot);
-
-  if (canScan) {
-    const scanned = await scanMovies(mediaRoot, { cachePath, tmdbCachePath: configuredTmdbCachePath });
-    if (scanned.categories.some((category) => category.movies.length > 0)) {
-      await writeDatabaseCache(cachePath, scanned);
-      return scanned;
-    }
+  const cached = await loadDatabaseCache(cachePath);
+  if (cached && hasMovies(cached)) {
+    return ensureMediaUrls(cached);
   }
 
   const mock = JSON.parse(await readFile(mockDbPath, "utf8"));
-  return attachMediaUrls(mock);
+  return ensureMediaUrls(mock);
 }
 
 export async function scanMovies(mediaRoot, options = {}) {
@@ -286,13 +280,22 @@ function unique(values) {
   return [...new Set(values.filter(Boolean))];
 }
 
-async function pathExists(targetPath) {
-  try {
-    await access(targetPath, constants.R_OK);
-    return true;
-  } catch {
-    return false;
-  }
+function ensureMediaUrls(database) {
+  return {
+    ...database,
+    categories: (database.categories || []).map((category) => ({
+      ...category,
+      movies: (category.movies || []).map((movie) => ({
+        ...movie,
+        posterUrl: movie.posterUrl || `/api/posters/${movie.id}`,
+        artworkUrl: movie.artworkUrl || `/api/artwork/${movie.id}`
+      }))
+    }))
+  };
+}
+
+function hasMovies(database) {
+  return (database.categories || []).some((category) => (category.movies || []).length > 0);
 }
 
 async function safeReadDir(targetPath) {

@@ -42,6 +42,7 @@ Unraid 映射关系：
 默认每日 04:00 执行一次普通全库扫描，用于发现新入库影片。可通过环境变量调整：
 
 ```text
+STARTUP_SCAN_ENABLED=true
 DAILY_SCAN_ENABLED=true
 DAILY_SCAN_TIME=04:00
 METADATA_CACHE_TTL_DAYS=30

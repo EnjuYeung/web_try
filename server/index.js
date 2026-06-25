@@ -75,11 +75,25 @@ app.listen(config.port, () => {
   const database = movieLibrary.getDatabase();
   console.log(`NAS movie wall listening on http://0.0.0.0:${config.port}`);
   console.log(`Movie source: ${database.source} (${config.mediaRoot})`);
+  runStartupScan();
   scheduleDailyScan({
     ...config.dailyScan,
     runScan: () => movieLibrary.runFullScan({ force: false, reason: "scheduled" })
   });
 });
+
+function runStartupScan() {
+  if (!config.startupScanEnabled) {
+    console.log("Startup movie scan disabled");
+    return;
+  }
+
+  setTimeout(() => {
+    movieLibrary.runFullScan({ force: false, reason: "startup" }).catch((error) => {
+      console.error("Startup movie scan failed", error);
+    });
+  }, 0);
+}
 
 function isForceRequest(req) {
   return req.query.force === "1" || req.query.force === "true" || req.body?.force === true;

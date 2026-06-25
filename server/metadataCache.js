@@ -4,7 +4,7 @@ import path from "node:path";
 const DEFAULT_METADATA_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 export async function loadCachedMovieMap(cachePath) {
-  const cachedDatabase = await readCachedDatabase(cachePath);
+  const cachedDatabase = await loadDatabaseCache(cachePath);
   if (!cachedDatabase) return new Map();
 
   const movies = new Map();
@@ -15,6 +15,16 @@ export async function loadCachedMovieMap(cachePath) {
   }
 
   return movies;
+}
+
+export async function loadDatabaseCache(cachePath) {
+  if (!cachePath) return null;
+
+  try {
+    return JSON.parse(await readFile(cachePath, "utf8"));
+  } catch {
+    return null;
+  }
 }
 
 export function pickCachedMetadata(movie) {
@@ -48,16 +58,6 @@ export async function writeDatabaseCache(cachePath, database) {
     await writeFile(cachePath, `${JSON.stringify(database, null, 2)}\n`, "utf8");
   } catch {
     // Cache writes are best-effort because Docker deployments may mount read-only app files.
-  }
-}
-
-async function readCachedDatabase(cachePath) {
-  if (!cachePath) return null;
-
-  try {
-    return JSON.parse(await readFile(cachePath, "utf8"));
-  } catch {
-    return null;
   }
 }
 
