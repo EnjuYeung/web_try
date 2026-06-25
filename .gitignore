@@ -1,5 +1,7 @@
 node_modules
 dist
 .DS_Store
+.env
 server/data/scan-cache.json
+server/data/tmdb-cache.json
 npm-debug.log*

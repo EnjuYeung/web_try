@@ -1,4 +1,4 @@
-import { createReadStream } from "node:fs";
+import { createReadStream, statSync } from "node:fs";
 import path from "node:path";
 
 const MOCK_PALETTES = {
@@ -27,13 +27,46 @@ export function sendPoster(req, res, posterIndex) {
     return;
   }
 
-  if (movie.posterPath) {
-    res.type(path.extname(movie.posterPath));
-    createReadStream(movie.posterPath).on("error", () => sendMockPoster(res, movie)).pipe(res);
+  sendFileOrFallback(res, movie.posterPath, () => sendMockPoster(res, movie));
+}
+
+export function sendArtwork(req, res, posterIndex) {
+  const movie = posterIndex.get(req.params.id);
+  if (!movie) {
+    res.status(404).json({ error: "Artwork not found" });
     return;
   }
 
-  sendMockPoster(res, movie);
+  sendFileOrFallback(res, movie.artworkPath, () => sendMockArtwork(res, movie));
+}
+
+function sendFileOrFallback(res, filePath, fallback) {
+  if (!filePath) {
+    fallback();
+    return;
+  }
+
+  let stats;
+  try {
+    stats = statSync(filePath);
+  } catch {
+    fallback();
+    return;
+  }
+
+  const etag = fileEtag(stats);
+  const lastModified = stats.mtime.toUTCString();
+  res.setHeader("Cache-Control", "public, max-age=86400");
+  res.setHeader("ETag", etag);
+  res.setHeader("Last-Modified", lastModified);
+
+  if (isFreshRequest(res.req, etag, stats.mtime)) {
+    res.status(304).end();
+    return;
+  }
+
+  res.type(path.extname(filePath));
+  createReadStream(filePath).on("error", fallback).pipe(res);
 }
 
 function sendMockPoster(res, movie) {
@@ -41,6 +74,7 @@ function sendMockPoster(res, movie) {
   const safeTitle = escapeXml(movie.title || "Movie");
   const safeYear = escapeXml(movie.year || "");
 
+  setGeneratedImageCacheHeaders(res);
   res.type("image/svg+xml");
   res.send(`<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="600" height="900" viewBox="0 0 600 900" role="img">
@@ -64,6 +98,46 @@ function sendMockPoster(res, movie) {
   </text>
   <text x="52" y="812" fill="${text}" opacity=".82" font-size="24" font-family="Arial, sans-serif">NAS MOVIE</text>
 </svg>`);
+}
+
+function sendMockArtwork(res, movie) {
+  const [bg, accent, text] = MOCK_PALETTES[movie.posterSeed] || MOCK_PALETTES.space;
+  const safeTitle = escapeXml(movie.title || "Movie");
+
+  setGeneratedImageCacheHeaders(res);
+  res.type("image/svg+xml");
+  res.send(`<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="${bg}"/>
+      <stop offset="0.58" stop-color="${accent}"/>
+      <stop offset="1" stop-color="${bg}"/>
+    </linearGradient>
+    <radialGradient id="r" cx="68%" cy="28%" r="64%">
+      <stop offset="0" stop-color="${text}" stop-opacity=".24"/>
+      <stop offset="1" stop-color="${bg}" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1600" height="900" fill="url(#g)"/>
+  <rect width="1600" height="900" fill="url(#r)"/>
+  <text x="86" y="742" fill="${text}" opacity=".72" font-size="76" font-weight="700" font-family="Arial, sans-serif">${safeTitle}</text>
+</svg>`);
+}
+
+function fileEtag(stats) {
+  return `W/"${stats.size.toString(16)}-${Math.trunc(stats.mtimeMs).toString(16)}"`;
+}
+
+function isFreshRequest(req, etag, mtime) {
+  if (req.headers["if-none-match"] === etag) return true;
+
+  const ifModifiedSince = Date.parse(req.headers["if-modified-since"] || "");
+  return Number.isFinite(ifModifiedSince) && ifModifiedSince >= Math.trunc(mtime.getTime() / 1000) * 1000;
+}
+
+function setGeneratedImageCacheHeaders(res) {
+  res.setHeader("Cache-Control", "public, max-age=3600");
 }
 
 function wrapTitle(title) {

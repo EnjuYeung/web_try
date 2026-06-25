@@ -1,19 +1,21 @@
 import crypto from "node:crypto";
 import path from "node:path";
-import { access, readdir, readFile, writeFile } from "node:fs/promises";
+import { access, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { constants } from "node:fs";
 import { readNfo } from "./nfo.js";
+import { attachActorImages, configureTmdbCache } from "./tmdb.js";
 
 const DEFAULT_CATEGORIES = ["其他电影", "欧美电影", "日韩电影", "动漫电影", "国产电影", "港台电影"];
 const VIDEO_EXTENSIONS = new Set([".mkv", ".mp4", ".avi", ".mov", ".wmv", ".flv", ".m4v", ".ts", ".webm"]);
 const IMAGE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp"]);
 const POSTER_PRIORITY = ["poster", "folder", "cover", "movie", "海报"];
 
-export async function loadMovieDatabase({ mediaRoot, mockDbPath, cachePath }) {
+export async function loadMovieDatabase({ mediaRoot, mockDbPath, cachePath, tmdbCachePath: configuredTmdbCachePath }) {
+  await configureTmdbCache(configuredTmdbCachePath);
   const canScan = await pathExists(mediaRoot);
 
   if (canScan) {
-    const scanned = await scanMovies(mediaRoot);
+    const scanned = await scanMovies(mediaRoot, { tmdbCachePath: configuredTmdbCachePath });
     if (scanned.categories.some((category) => category.movies.length > 0)) {
       await writeJson(cachePath, scanned);
       return scanned;
@@ -21,10 +23,11 @@ export async function loadMovieDatabase({ mediaRoot, mockDbPath, cachePath }) {
   }
 
   const mock = JSON.parse(await readFile(mockDbPath, "utf8"));
-  return attachPosterUrls(mock);
+  return attachMediaUrls(mock);
 }
 
-export async function scanMovies(mediaRoot) {
+export async function scanMovies(mediaRoot, options = {}) {
+  await configureTmdbCache(options.tmdbCachePath);
   const categories = [];
   const entries = await safeReadDir(mediaRoot);
   const foundCategoryNames = entries
@@ -52,7 +55,7 @@ export async function scanMovies(mediaRoot) {
     });
   }
 
-  return attachPosterUrls({
+  return attachMediaUrls({
     source: "scan",
     updatedAt: new Date().toISOString(),
     mediaRoot,
@@ -73,6 +76,7 @@ async function scanMovieFolder(moviePath, category, folderName) {
   const nfo = nfoFile ? await readNfo(path.join(moviePath, nfoFile)) : {};
   const fallback = parseFolderName(folderName);
   const posterFile = pickPoster(files);
+  const artworkFile = pickArtwork(files);
   const id = stableId(`${category}:${moviePath}`);
 
   return {
@@ -81,13 +85,23 @@ async function scanMovieFolder(moviePath, category, folderName) {
     originalTitle: nfo.originalTitle || "",
     year: nfo.year || fallback.year,
     rating: nfo.rating || "",
+    certification: nfo.certification || "",
+    tagline: nfo.tagline || "",
     runtime: nfo.runtime || "",
     overview: nfo.overview || "",
+    resolution: nfo.resolution || "",
+    codec: nfo.codec || "",
+    bitrate: nfo.bitrate || "",
+    hdrType: nfo.hdrType || "",
+    audioFormat: nfo.audioFormat || "",
+    actors: nfo.actors || [],
     category,
     folderName,
     videoFile: videoFile || "",
     posterPath: posterFile ? path.join(moviePath, posterFile) : "",
-    posterUrl: `/api/posters/${id}`
+    artworkPath: artworkFile ? path.join(moviePath, artworkFile) : "",
+    posterUrl: `/api/posters/${id}`,
+    artworkUrl: `/api/artwork/${id}`
   };
 }
 
@@ -103,6 +117,10 @@ function pickPoster(files) {
 
   scored.sort((a, b) => a.score - b.score || a.file.localeCompare(b.file));
   return scored[0].file;
+}
+
+function pickArtwork(files) {
+  return files.find((file) => file.toLowerCase() === "fanart.jpg") || "";
 }
 
 function parseFolderName(folderName) {
@@ -129,16 +147,26 @@ export function buildPosterIndex(database) {
   return index;
 }
 
-export function attachPosterUrls(database) {
+export async function attachMediaUrls(database) {
+  const categories = [];
+
+  for (const category of database.categories || []) {
+    const movies = [];
+    for (const movie of category.movies || []) {
+      movies.push({
+        ...movie,
+        posterUrl: movie.posterUrl || `/api/posters/${movie.id}`,
+        artworkUrl: movie.artworkUrl || `/api/artwork/${movie.id}`,
+        actors: await attachActorImages(movie.actors || [])
+      });
+    }
+
+    categories.push({ ...category, movies });
+  }
+
   return {
     ...database,
-    categories: (database.categories || []).map((category) => ({
-      ...category,
-      movies: (category.movies || []).map((movie) => ({
-        ...movie,
-        posterUrl: movie.posterUrl || `/api/posters/${movie.id}`
-      }))
-    }))
+    categories
   };
 }
 
@@ -180,6 +208,7 @@ async function safeReadDir(targetPath) {
 
 async function writeJson(filePath, data) {
   try {
+    await mkdir(path.dirname(filePath), { recursive: true });
     await writeFile(filePath, `${JSON.stringify(data, null, 2)}\n`, "utf8");
   } catch {
     // Cache writes are best-effort because Docker deployments may mount read-only app files.

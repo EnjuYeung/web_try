@@ -3,10 +3,15 @@ services:
     build: .
     container_name: nas-movie-wall
     restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
     environment:
       PORT: 3000
       MEDIA_ROOT: /media/movies
+      DATA_ROOT: /app/data
     ports:
       - "17174:3000"
     volumes:
       - /mnt/user/Entertain/Movie:/media/movies:ro
+      - /mnt/cache/appdata/nas-movie-wall:/app/data

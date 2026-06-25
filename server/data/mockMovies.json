@@ -77,10 +77,39 @@
           "title": "白昼迷宫",
           "year": "2023",
           "rating": "7.2",
+          "certification": "PG-13",
+          "tagline": "真相藏在正午最亮的地方。",
           "runtime": "112 分钟",
           "overview": "一名刑警在看似平静的小镇寻找真相。",
+          "resolution": "3840x2160",
+          "codec": "HEVC Main 10",
+          "bitrate": "18.6 Mbps",
+          "hdrType": "HDR10+",
+          "audioFormat": "次世代音轨",
           "category": "日韩电影",
-          "posterSeed": "maze"
+          "posterSeed": "maze",
+          "actors": [
+            {
+              "name": "林知远",
+              "role": "韩昭",
+              "tmdbid": "1448051"
+            },
+            {
+              "name": "周南希",
+              "role": "尹书妍",
+              "tmdbid": "1245"
+            },
+            {
+              "name": "河本亮",
+              "role": "北原诚",
+              "tmdbid": "3896"
+            },
+            {
+              "name": "郑雅文",
+              "role": "许医生",
+              "tmdbid": "6384"
+            }
+          ]
         }
       ]
     },
