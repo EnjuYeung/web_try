@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import path from "node:path";
-import { readdir, readFile } from "node:fs/promises";
+import { readdir, readFile, stat } from "node:fs/promises";
 import { isMetadataCacheFresh, loadCachedMovieMap, loadDatabaseCache, pickCachedMetadata, writeDatabaseCache } from "./metadataCache.js";
 import { readNfo } from "./nfo.js";
 import { attachActorImages, configureTmdbCache } from "./tmdb.js";
@@ -163,6 +163,9 @@ async function scanMovieFolder(moviePath, category, folderName, options = {}) {
   const posterFile = pickPoster(files);
   const artworkFile = pickArtwork(files);
   const id = stableId(`${category}:${moviePath}`);
+  const posterPath = posterFile ? path.join(moviePath, posterFile) : options.cachedMovie?.posterPath || "";
+  const artworkPath = artworkFile ? path.join(moviePath, artworkFile) : options.cachedMovie?.artworkPath || "";
+  const mediaVersion = await buildMediaVersion([posterPath, artworkPath]);
 
   return {
     id,
@@ -181,13 +184,14 @@ async function scanMovieFolder(moviePath, category, folderName, options = {}) {
     audioFormat: nfo.audioFormat || "",
     actors: nfo.actors || [],
     metadataCachedAt: canUseCachedMetadata ? options.cachedMovie.metadataCachedAt || options.cachedMovie.updatedAt : new Date().toISOString(),
+    mediaVersion,
     category,
     folderName,
     videoFile: videoFile || "",
-    posterPath: posterFile ? path.join(moviePath, posterFile) : options.cachedMovie?.posterPath || "",
-    artworkPath: artworkFile ? path.join(moviePath, artworkFile) : options.cachedMovie?.artworkPath || "",
-    posterUrl: `/api/posters/${id}`,
-    artworkUrl: `/api/artwork/${id}`
+    posterPath,
+    artworkPath,
+    posterUrl: mediaUrl(`/api/posters/${id}`, mediaVersion),
+    artworkUrl: mediaUrl(`/api/artwork/${id}`, mediaVersion)
   };
 }
 
@@ -253,10 +257,13 @@ async function attachMediaUrls(database, options = {}) {
 }
 
 async function attachMovieMediaUrls(movie, options = {}) {
+  const mediaVersion = movie.mediaVersion || (await buildMediaVersion([movie.posterPath, movie.artworkPath]));
+
   return {
     ...movie,
-    posterUrl: movie.posterUrl || `/api/posters/${movie.id}`,
-    artworkUrl: movie.artworkUrl || `/api/artwork/${movie.id}`,
+    mediaVersion,
+    posterUrl: mediaUrl(`/api/posters/${movie.id}`, mediaVersion),
+    artworkUrl: mediaUrl(`/api/artwork/${movie.id}`, mediaVersion),
     actors: await attachActorImages(movie.actors || [], { force: options.forceTmdb })
   };
 }
@@ -287,8 +294,8 @@ function ensureMediaUrls(database) {
       ...category,
       movies: (category.movies || []).map((movie) => ({
         ...movie,
-        posterUrl: movie.posterUrl || `/api/posters/${movie.id}`,
-        artworkUrl: movie.artworkUrl || `/api/artwork/${movie.id}`
+        posterUrl: mediaUrl(`/api/posters/${movie.id}`, movie.mediaVersion),
+        artworkUrl: mediaUrl(`/api/artwork/${movie.id}`, movie.mediaVersion)
       }))
     }))
   };
@@ -296,6 +303,27 @@ function ensureMediaUrls(database) {
 
 function hasMovies(database) {
   return (database.categories || []).some((category) => (category.movies || []).length > 0);
+}
+
+async function buildMediaVersion(filePaths) {
+  const parts = [];
+
+  for (const filePath of filePaths) {
+    if (!filePath) continue;
+
+    try {
+      const stats = await stat(filePath);
+      parts.push(`${path.basename(filePath)}:${stats.size}:${Math.trunc(stats.mtimeMs)}`);
+    } catch {
+      // Missing artwork falls back to generated assets; no local file version is needed.
+    }
+  }
+
+  return parts.length > 0 ? stableId(parts.join("|")) : "";
+}
+
+function mediaUrl(baseUrl, version) {
+  return version ? `${baseUrl}?v=${encodeURIComponent(version)}` : baseUrl;
 }
 
 async function safeReadDir(targetPath) {

@@ -56,7 +56,7 @@ function sendFileOrFallback(res, filePath, fallback) {
 
   const etag = fileEtag(stats);
   const lastModified = stats.mtime.toUTCString();
-  res.setHeader("Cache-Control", "public, max-age=86400");
+  res.setHeader("Cache-Control", "private, no-cache");
   res.setHeader("ETag", etag);
   res.setHeader("Last-Modified", lastModified);
 
@@ -137,7 +137,7 @@ function isFreshRequest(req, etag, mtime) {
 }
 
 function setGeneratedImageCacheHeaders(res) {
-  res.setHeader("Cache-Control", "public, max-age=3600");
+  res.setHeader("Cache-Control", "private, no-cache");
 }
 
 function wrapTitle(title) {
