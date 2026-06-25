@@ -225,6 +225,9 @@ button {
 
 .detail-page {
   position: relative;
+  --detail-edge: clamp(8px, 4vw, 72px);
+  --detail-poster-width: clamp(190px, 18vw, 260px);
+  --detail-poster-height: clamp(285px, 27vw, 390px);
   min-height: 100vh;
   overflow: hidden;
   padding: 24px 16px 48px;
@@ -287,14 +290,15 @@ button {
   position: relative;
   z-index: 1;
   display: grid;
-  grid-template-columns: minmax(190px, 260px) minmax(0, 760px);
+  grid-template-columns: var(--detail-poster-width) minmax(0, 1fr);
   gap: clamp(24px, 4vw, 56px);
-  align-items: end;
-  min-height: min(68vh, 680px);
-  padding: 44px clamp(8px, 4vw, 72px) 28px;
+  align-items: start;
+  min-height: 0;
+  padding: 24px var(--detail-edge) 28px;
 }
 
 .detail-poster {
+  width: var(--detail-poster-width);
   aspect-ratio: 2 / 3;
   overflow: hidden;
   border: 1px solid var(--line);
@@ -313,9 +317,12 @@ button {
 .detail-copy {
   display: flex;
   flex-direction: column;
-  justify-content: flex-end;
+  justify-content: flex-start;
   gap: 15px;
   min-width: 0;
+  max-height: var(--detail-poster-height);
+  overflow-y: auto;
+  scrollbar-gutter: stable;
 }
 
 .detail-title-row {
@@ -373,7 +380,7 @@ button {
 }
 
 .detail-metadata {
-  max-width: min(760px, 62vw);
+  max-width: 100%;
   color: color-mix(in srgb, var(--text) 76%, var(--muted));
   font-size: 15px;
   line-height: 1.55;
@@ -381,7 +388,7 @@ button {
 
 .detail-tagline {
   margin: 0;
-  max-width: 68ch;
+  max-width: 100%;
   color: color-mix(in srgb, var(--text) 86%, var(--muted));
   font-size: 19px;
   line-height: 1.48;
@@ -389,7 +396,7 @@ button {
 
 .detail-overview {
   margin: 0;
-  max-width: min(50vw, 76ch);
+  max-width: 100%;
   color: color-mix(in srgb, var(--text) 78%, var(--muted));
   font-size: 16px;
   line-height: 1.72;
@@ -402,7 +409,7 @@ button {
   grid-auto-flow: column;
   grid-auto-columns: 140px;
   gap: 16px;
-  padding: 10px clamp(8px, 4vw, 72px) 8px;
+  padding: 10px var(--detail-edge) 8px;
   overflow-x: auto;
   scrollbar-color: #334155 transparent;
 }
@@ -542,6 +549,12 @@ button {
     --poster-width: clamp(116px, 18vw, 150px);
   }
 
+  .detail-page {
+    --detail-edge: 8px;
+    --detail-poster-width: clamp(150px, 24vw, 220px);
+    --detail-poster-height: clamp(225px, 36vw, 330px);
+  }
+
   .topbar {
     position: static;
     align-items: stretch;
@@ -555,9 +568,7 @@ button {
   }
 
   .detail-hero {
-    grid-template-columns: minmax(150px, 220px) minmax(0, 1fr);
-    padding-right: 8px;
-    padding-left: 8px;
+    grid-template-columns: var(--detail-poster-width) minmax(0, 1fr);
   }
 }
 
@@ -593,6 +604,9 @@ button {
   }
 
   .detail-page {
+    --detail-edge: 0px;
+    --detail-poster-width: min(58vw, 220px);
+    --detail-poster-height: auto;
     padding-top: 16px;
   }
 
@@ -615,7 +629,14 @@ button {
   }
 
   .detail-poster {
-    width: min(58vw, 220px);
+    width: var(--detail-poster-width);
+  }
+
+  .detail-copy {
+    max-height: none;
+    overflow-y: visible;
+    padding-right: 0;
+    scrollbar-gutter: auto;
   }
 
   .detail-title-row h1 {

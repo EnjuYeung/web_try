@@ -1,7 +1,8 @@
 import crypto from "node:crypto";
 import path from "node:path";
-import { access, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { access, readdir, readFile } from "node:fs/promises";
 import { constants } from "node:fs";
+import { isMetadataCacheFresh, loadCachedMovieMap, pickCachedMetadata, writeDatabaseCache } from "./metadataCache.js";
 import { readNfo } from "./nfo.js";
 import { attachActorImages, configureTmdbCache } from "./tmdb.js";
 
@@ -15,9 +16,9 @@ export async function loadMovieDatabase({ mediaRoot, mockDbPath, cachePath, tmdb
   const canScan = await pathExists(mediaRoot);
 
   if (canScan) {
-    const scanned = await scanMovies(mediaRoot, { tmdbCachePath: configuredTmdbCachePath });
+    const scanned = await scanMovies(mediaRoot, { cachePath, tmdbCachePath: configuredTmdbCachePath });
     if (scanned.categories.some((category) => category.movies.length > 0)) {
-      await writeJson(cachePath, scanned);
+      await writeDatabaseCache(cachePath, scanned);
       return scanned;
     }
   }
@@ -28,6 +29,7 @@ export async function loadMovieDatabase({ mediaRoot, mockDbPath, cachePath, tmdb
 
 export async function scanMovies(mediaRoot, options = {}) {
   await configureTmdbCache(options.tmdbCachePath);
+  const cachedMovies = options.force ? new Map() : await loadCachedMovieMap(options.cachePath);
   const categories = [];
   const entries = await safeReadDir(mediaRoot);
   const foundCategoryNames = entries
@@ -37,14 +39,14 @@ export async function scanMovies(mediaRoot, options = {}) {
 
   for (const categoryName of categoryNames) {
     const categoryPath = path.join(mediaRoot, categoryName);
-    const categoryEntries = await safeReadDir(categoryPath);
+    const movieFolders = await collectLeafMovieFolders(categoryPath);
     const movies = [];
 
-    for (const entry of categoryEntries) {
-      if (!entry.isDirectory()) continue;
-
-      const moviePath = path.join(categoryPath, entry.name);
-      const movie = await scanMovieFolder(moviePath, categoryName, entry.name);
+    for (const moviePath of movieFolders) {
+      const movie = await scanMovieFolder(moviePath, categoryName, path.basename(moviePath), {
+        cachedMovie: cachedMovies.get(stableId(`${categoryName}:${moviePath}`)),
+        force: options.force
+      });
       if (movie) movies.push(movie);
     }
 
@@ -55,15 +57,100 @@ export async function scanMovies(mediaRoot, options = {}) {
     });
   }
 
-  return attachMediaUrls({
+  const database = await attachMediaUrls({
     source: "scan",
     updatedAt: new Date().toISOString(),
     mediaRoot,
     categories: categories.filter((category) => category.movies.length > 0)
-  });
+  }, { forceTmdb: options.force });
+
+  if (options.cachePath) {
+    await writeDatabaseCache(options.cachePath, database);
+  }
+
+  return database;
 }
 
-async function scanMovieFolder(moviePath, category, folderName) {
+export async function scanMovieById(mediaRoot, movieId, options = {}) {
+  await configureTmdbCache(options.tmdbCachePath);
+  const cachedMovies = options.force ? new Map() : await loadCachedMovieMap(options.cachePath);
+  const entries = await safeReadDir(mediaRoot);
+  const foundCategoryNames = entries
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name);
+  const categoryNames = unique([...DEFAULT_CATEGORIES, ...foundCategoryNames]);
+
+  for (const categoryName of categoryNames) {
+    const categoryPath = path.join(mediaRoot, categoryName);
+    const movieFolders = await collectLeafMovieFolders(categoryPath);
+
+    for (const moviePath of movieFolders) {
+      const id = stableId(`${categoryName}:${moviePath}`);
+      if (id !== movieId) continue;
+
+      const movie = await scanMovieFolder(moviePath, categoryName, path.basename(moviePath), {
+        cachedMovie: cachedMovies.get(id),
+        force: options.force
+      });
+
+      return movie ? (await attachMovieMediaUrls(movie, { forceTmdb: options.force })) : null;
+    }
+  }
+
+  return null;
+}
+
+export function replaceMovieInDatabase(database, movie) {
+  let replaced = false;
+  const categories = (database.categories || []).map((category) => {
+    const movies = (category.movies || []).map((existing) => {
+      if (existing.id !== movie.id) return existing;
+      replaced = true;
+      return movie;
+    });
+
+    return { ...category, movies };
+  });
+
+  if (!replaced) {
+    const categoryIndex = categories.findIndex((category) => category.name === movie.category);
+    if (categoryIndex === -1) {
+      categories.push({ id: slugify(movie.category), name: movie.category, movies: [movie] });
+    } else {
+      categories[categoryIndex] = {
+        ...categories[categoryIndex],
+        movies: [...categories[categoryIndex].movies, movie].sort(
+          (a, b) => Number(b.year || 0) - Number(a.year || 0) || a.title.localeCompare(b.title, "zh-CN")
+        )
+      };
+    }
+  }
+
+  return {
+    ...database,
+    source: "scan",
+    updatedAt: new Date().toISOString(),
+    categories
+  };
+}
+
+async function collectLeafMovieFolders(folderPath) {
+  const entries = await safeReadDir(folderPath);
+  const childFolders = entries.filter((entry) => entry.isDirectory()).map((entry) => path.join(folderPath, entry.name));
+
+  if (childFolders.length === 0) {
+    return [folderPath];
+  }
+
+  const leafFolders = [];
+  for (const childFolder of childFolders) {
+    leafFolders.push(...(await collectLeafMovieFolders(childFolder)));
+  }
+
+  return leafFolders;
+}
+
+async function scanMovieFolder(moviePath, category, folderName, options = {}) {
   const entries = await safeReadDir(moviePath);
   const files = entries.filter((entry) => entry.isFile()).map((entry) => entry.name);
   const videoFile = files.find((file) => VIDEO_EXTENSIONS.has(path.extname(file).toLowerCase()));
@@ -73,7 +160,11 @@ async function scanMovieFolder(moviePath, category, folderName) {
     return null;
   }
 
-  const nfo = nfoFile ? await readNfo(path.join(moviePath, nfoFile)) : {};
+  const canUseCachedMetadata =
+    options.cachedMovie &&
+    !options.force &&
+    isMetadataCacheFresh(options.cachedMovie);
+  const nfo = canUseCachedMetadata ? pickCachedMetadata(options.cachedMovie) : nfoFile ? await readNfo(path.join(moviePath, nfoFile)) : {};
   const fallback = parseFolderName(folderName);
   const posterFile = pickPoster(files);
   const artworkFile = pickArtwork(files);
@@ -95,11 +186,12 @@ async function scanMovieFolder(moviePath, category, folderName) {
     hdrType: nfo.hdrType || "",
     audioFormat: nfo.audioFormat || "",
     actors: nfo.actors || [],
+    metadataCachedAt: canUseCachedMetadata ? options.cachedMovie.metadataCachedAt || options.cachedMovie.updatedAt : new Date().toISOString(),
     category,
     folderName,
     videoFile: videoFile || "",
-    posterPath: posterFile ? path.join(moviePath, posterFile) : "",
-    artworkPath: artworkFile ? path.join(moviePath, artworkFile) : "",
+    posterPath: posterFile ? path.join(moviePath, posterFile) : options.cachedMovie?.posterPath || "",
+    artworkPath: artworkFile ? path.join(moviePath, artworkFile) : options.cachedMovie?.artworkPath || "",
     posterUrl: `/api/posters/${id}`,
     artworkUrl: `/api/artwork/${id}`
   };
@@ -120,7 +212,8 @@ function pickPoster(files) {
 }
 
 function pickArtwork(files) {
-  return files.find((file) => file.toLowerCase() === "fanart.jpg") || "";
+  const images = files.filter((file) => IMAGE_EXTENSIONS.has(path.extname(file).toLowerCase()));
+  return images.find((file) => path.basename(file, path.extname(file)).toLowerCase().includes("fanart")) || "";
 }
 
 function parseFolderName(folderName) {
@@ -147,18 +240,13 @@ export function buildPosterIndex(database) {
   return index;
 }
 
-export async function attachMediaUrls(database) {
+async function attachMediaUrls(database, options = {}) {
   const categories = [];
 
   for (const category of database.categories || []) {
     const movies = [];
     for (const movie of category.movies || []) {
-      movies.push({
-        ...movie,
-        posterUrl: movie.posterUrl || `/api/posters/${movie.id}`,
-        artworkUrl: movie.artworkUrl || `/api/artwork/${movie.id}`,
-        actors: await attachActorImages(movie.actors || [])
-      });
+      movies.push(await attachMovieMediaUrls(movie, options));
     }
 
     categories.push({ ...category, movies });
@@ -167,6 +255,15 @@ export async function attachMediaUrls(database) {
   return {
     ...database,
     categories
+  };
+}
+
+async function attachMovieMediaUrls(movie, options = {}) {
+  return {
+    ...movie,
+    posterUrl: movie.posterUrl || `/api/posters/${movie.id}`,
+    artworkUrl: movie.artworkUrl || `/api/artwork/${movie.id}`,
+    actors: await attachActorImages(movie.actors || [], { force: options.forceTmdb })
   };
 }
 
@@ -203,14 +300,5 @@ async function safeReadDir(targetPath) {
     return await readdir(targetPath, { withFileTypes: true });
   } catch {
     return [];
-  }
-}
-
-async function writeJson(filePath, data) {
-  try {
-    await mkdir(path.dirname(filePath), { recursive: true });
-    await writeFile(filePath, `${JSON.stringify(data, null, 2)}\n`, "utf8");
-  } catch {
-    // Cache writes are best-effort because Docker deployments may mount read-only app files.
   }
 }

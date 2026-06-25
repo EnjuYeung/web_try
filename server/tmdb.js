@@ -3,10 +3,12 @@ import path from "node:path";
 
 const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w185";
 const TMDB_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const TMDB_MIN_REQUEST_INTERVAL_MS = 100;
 
 let tmdbCachePath = "";
 let tmdbCacheLoaded = false;
 let tmdbCache = { people: {} };
+let tmdbRateLimitTail = Promise.resolve();
 
 export async function configureTmdbCache(filePath) {
   if (filePath && filePath !== tmdbCachePath) {
@@ -18,10 +20,10 @@ export async function configureTmdbCache(filePath) {
   await ensureTmdbCacheLoaded();
 }
 
-export async function attachActorImages(actors) {
+export async function attachActorImages(actors, options = {}) {
   const enriched = await Promise.all(
     actors.map(async (actor) => {
-      const imageUrl = await fetchTmdbProfileImage(actor.tmdbid);
+      const imageUrl = await fetchTmdbProfileImage(actor.tmdbid, { force: options.force });
       return imageUrl ? { ...actor, imageUrl } : null;
     })
   );
@@ -29,13 +31,13 @@ export async function attachActorImages(actors) {
   return enriched.filter(Boolean);
 }
 
-async function fetchTmdbProfileImage(tmdbid) {
+async function fetchTmdbProfileImage(tmdbid, options = {}) {
   const id = String(tmdbid || "").trim();
   if (!id) return "";
 
   await ensureTmdbCacheLoaded();
   const cached = tmdbCache.people[id];
-  if (cached && !isExpired(cached.updatedAt, TMDB_CACHE_TTL_MS)) {
+  if (cached && !isExpired(cached.updatedAt, TMDB_CACHE_TTL_MS) && !options.force) {
     return cached.imageUrl || "";
   }
 
@@ -44,6 +46,8 @@ async function fetchTmdbProfileImage(tmdbid) {
   if (!apiKey && !accessToken) return "";
 
   try {
+    await throttleTmdbRequest();
+
     const url = new URL(`https://api.themoviedb.org/3/person/${encodeURIComponent(id)}`);
     if (apiKey) url.searchParams.set("api_key", apiKey);
     url.searchParams.set("language", "zh-CN");
@@ -94,6 +98,25 @@ function isExpired(updatedAt, ttlMs) {
   const time = Date.parse(updatedAt || "");
   return !Number.isFinite(time) || Date.now() - time > ttlMs;
 }
+
+async function throttleTmdbRequest() {
+  const previous = tmdbRateLimitTail;
+  let release;
+  tmdbRateLimitTail = new Promise((resolve) => {
+    release = resolve;
+  });
+
+  await previous;
+  const now = Date.now();
+  const waitMs = Math.max(0, TMDB_MIN_REQUEST_INTERVAL_MS - (now - throttleTmdbRequest.lastRequestAt));
+  if (waitMs > 0) {
+    await new Promise((resolve) => setTimeout(resolve, waitMs));
+  }
+  throttleTmdbRequest.lastRequestAt = Date.now();
+  release();
+}
+
+throttleTmdbRequest.lastRequestAt = 0;
 
 async function writeJson(filePath, data) {
   await mkdir(path.dirname(filePath), { recursive: true });

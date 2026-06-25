@@ -39,6 +39,14 @@ Unraid 映射关系：
 /mnt/user/Entertain/Movie -> /media/movies:ro
 ```
 
+默认每日 04:00 执行一次普通全库扫描，用于发现新入库影片。可通过环境变量调整：
+
+```text
+DAILY_SCAN_ENABLED=true
+DAILY_SCAN_TIME=04:00
+METADATA_CACHE_TTL_DAYS=30
+```
+
 ## 目录约定
 
 ```text

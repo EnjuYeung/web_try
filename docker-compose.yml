@@ -10,6 +10,7 @@ services:
       PORT: 3000
       MEDIA_ROOT: /media/movies
       DATA_ROOT: /app/data
+      TZ: Asia/Shanghai
     ports:
       - "17174:3000"
     volumes:

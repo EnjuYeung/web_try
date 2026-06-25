@@ -21,11 +21,11 @@ export function MovieWallPage({ onNavigate, theme, onThemeChange }) {
       .finally(() => setLoading(false));
   }, []);
 
-  async function rescan() {
+  async function rescan(options = {}) {
     setScanning(true);
     setError("");
     try {
-      setDatabase(await rescanMovies());
+      setDatabase(await rescanMovies({ force: options.force }));
     } catch (err) {
       setError(err.message);
     } finally {
@@ -68,7 +68,7 @@ export function MovieWallPage({ onNavigate, theme, onThemeChange }) {
             placeholder="搜索片名、年份、评分"
             value={query}
           />
-          <RescanButton disabled={scanning} onClick={rescan} />
+          <RescanButton disabled={scanning} onClick={() => rescan()} onForceClick={() => rescan({ force: true })} />
           <ThemeToggle value={theme} onChange={onThemeChange} />
         </div>
       </header>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { loadMovie, rescanMovies } from "../api/movies";
+import { loadMovie, rescanMovie } from "../api/movies";
 import { RescanButton } from "../components/RescanButton";
 
 export function MovieDetailPage({ movieId, onNavigate }) {
@@ -17,12 +17,11 @@ export function MovieDetailPage({ movieId, onNavigate }) {
       .finally(() => setLoading(false));
   }, [movieId]);
 
-  async function rescan() {
+  async function rescan(options = {}) {
     setScanning(true);
     setError("");
     try {
-      await rescanMovies();
-      setMovie(await loadMovie(movieId));
+      setMovie(await rescanMovie(movieId, { force: options.force }));
     } catch (err) {
       setError(err.message);
       setMovie(null);
@@ -100,7 +99,7 @@ function DetailNav({ onNavigate, onRescan, scanning }) {
       <button className="detail-back" onClick={() => onNavigate("/")} type="button" aria-label="返回电影墙">
         <BackIcon />
       </button>
-      <RescanButton disabled={scanning} onClick={onRescan} />
+      <RescanButton disabled={scanning} onClick={() => onRescan()} onForceClick={() => onRescan({ force: true })} />
     </div>
   );
 }

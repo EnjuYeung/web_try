@@ -89,8 +89,9 @@ function readAudioFormat(xml) {
     .map((audio) => [tagValue(audio, "codec"), tagValue(audio, "corec")].filter(Boolean).join(" "))
     .filter(Boolean)
     .join(" ");
+  const normalizedAudioCodecs = audioCodecs.replace(/[-\s]/g, "");
 
-  return /truehd|dts-hd|dts:x|atmos/i.test(audioCodecs) ? "次世代音轨" : "";
+  return /truehd|dtshd|dts:x|atmos/i.test(normalizedAudioCodecs) ? "次世代音轨" : "";
 }
 
 function readActors(xml) {
