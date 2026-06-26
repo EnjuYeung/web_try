@@ -3,7 +3,7 @@ import path from "node:path";
 import { open, readdir, readFile, stat } from "node:fs/promises";
 import { isMetadataCacheFresh, loadCachedMovieMap, loadDatabaseCache, pickCachedMetadata, writeDatabaseCache } from "./metadataCache.js";
 import { readNfo } from "./nfo.js";
-import { attachActorImages, configureTmdbCache } from "./tmdb.js";
+import { attachActorImages, configureTmdbCache, flushTmdbCache } from "./tmdb.js";
 
 const DEFAULT_CATEGORIES = ["其他电影", "欧美电影", "日韩电影", "动漫电影", "国产电影", "港台电影"];
 const VIDEO_EXTENSIONS = new Set([".mkv", ".mp4", ".avi", ".mov", ".wmv", ".flv", ".m4v", ".ts", ".webm"]);
@@ -11,6 +11,7 @@ const IMAGE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp"]);
 const POSTER_PRIORITY = ["poster", "folder", "cover", "movie", "海报"];
 const ARTWORK_NAME_PARTS = ["fanart", "backdrop", "background", "artwork"];
 const IMAGE_HEADER_BYTES = 512 * 1024;
+const MOVIE_SCAN_CONCURRENCY = 10;
 
 export async function loadMovieDatabase({ mediaRoot, mockDbPath, cachePath, tmdbCachePath: configuredTmdbCachePath }) {
   await configureTmdbCache(configuredTmdbCachePath);
@@ -25,50 +26,53 @@ export async function loadMovieDatabase({ mediaRoot, mockDbPath, cachePath, tmdb
 
 export async function scanMovies(mediaRoot, options = {}) {
   await configureTmdbCache(options.tmdbCachePath);
-  const cachedMovies = await loadCachedMovieMap(options.cachePath);
-  const previousMovies = options.previousMovies || cachedMovies;
-  const categories = [];
-  const foundCategoryNames = await listMovieCategories(mediaRoot);
-  const requestedCategories = new Set(options.categories || []);
-  const categoryNames = unique([...DEFAULT_CATEGORIES, ...foundCategoryNames]).filter(
-    (categoryName) => requestedCategories.size === 0 || requestedCategories.has(categoryName)
-  );
 
-  for (const categoryName of categoryNames) {
-    const categoryPath = path.join(mediaRoot, categoryName);
-    const movieFolders = await collectLeafMovieFolders(categoryPath);
-    const movies = [];
+  try {
+    const cachedMovies = await loadCachedMovieMap(options.cachePath);
+    const previousMovies = options.previousMovies || cachedMovies;
+    const categories = [];
+    const foundCategoryNames = await listMovieCategories(mediaRoot);
+    const requestedCategories = new Set(options.categories || []);
+    const categoryNames = unique([...DEFAULT_CATEGORIES, ...foundCategoryNames]).filter(
+      (categoryName) => requestedCategories.size === 0 || requestedCategories.has(categoryName)
+    );
 
-    for (const moviePath of movieFolders) {
-      const id = stableId(`${categoryName}:${moviePath}`);
-      const cachedMovie = cachedMovies.get(id);
-      const movie = await scanMovieFolder(moviePath, categoryName, path.basename(moviePath), {
-        cachedMovie,
-        force: options.force,
-        refreshMetadata: Boolean(cachedMovie) && !options.force
+    for (const categoryName of categoryNames) {
+      const categoryPath = path.join(mediaRoot, categoryName);
+      const movieFolders = await collectLeafMovieFolders(categoryPath);
+      const scannedMovies = await mapWithConcurrency(movieFolders, MOVIE_SCAN_CONCURRENCY, async (moviePath) => {
+        const id = stableId(`${categoryName}:${moviePath}`);
+        const cachedMovie = cachedMovies.get(id);
+        return scanMovieFolder(moviePath, categoryName, path.basename(moviePath), {
+          cachedMovie,
+          force: options.force,
+          refreshMetadata: Boolean(cachedMovie) && !options.force
+        });
       });
-      if (movie) movies.push(movie);
+      const movies = scannedMovies.filter(Boolean);
+
+      categories.push({
+        id: slugify(categoryName),
+        name: categoryName,
+        movies: movies.sort((a, b) => Number(b.year || 0) - Number(a.year || 0) || a.title.localeCompare(b.title, "zh-CN"))
+      });
     }
 
-    categories.push({
-      id: slugify(categoryName),
-      name: categoryName,
-      movies: movies.sort((a, b) => Number(b.year || 0) - Number(a.year || 0) || a.title.localeCompare(b.title, "zh-CN"))
-    });
+    const database = await attachMediaUrls({
+      source: "scan",
+      updatedAt: new Date().toISOString(),
+      mediaRoot,
+      categories: categories.filter((category) => category.movies.length > 0)
+    }, { forceTmdb: options.force, previousMovies });
+
+    if (options.cachePath && options.writeCache !== false) {
+      await writeDatabaseCache(options.cachePath, database);
+    }
+
+    return database;
+  } finally {
+    await flushTmdbCache();
   }
-
-  const database = await attachMediaUrls({
-    source: "scan",
-    updatedAt: new Date().toISOString(),
-    mediaRoot,
-    categories: categories.filter((category) => category.movies.length > 0)
-  }, { forceTmdb: options.force, previousMovies });
-
-  if (options.cachePath && options.writeCache !== false) {
-    await writeDatabaseCache(options.cachePath, database);
-  }
-
-  return database;
 }
 
 export async function listMovieCategories(mediaRoot) {
@@ -78,42 +82,46 @@ export async function listMovieCategories(mediaRoot) {
 
 export async function scanMovieById(mediaRoot, movieId, options = {}) {
   await configureTmdbCache(options.tmdbCachePath);
-  const cachedMovies = await loadCachedMovieMap(options.cachePath);
-  const entries = await safeReadDir(mediaRoot);
-  const foundCategoryNames = entries
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => entry.name);
-  const categoryNames = unique([...DEFAULT_CATEGORIES, ...foundCategoryNames]);
+  try {
+    const cachedMovies = await loadCachedMovieMap(options.cachePath);
+    const entries = await safeReadDir(mediaRoot);
+    const foundCategoryNames = entries
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name);
+    const categoryNames = unique([...DEFAULT_CATEGORIES, ...foundCategoryNames]);
 
-  for (const categoryName of categoryNames) {
-    const categoryPath = path.join(mediaRoot, categoryName);
-    const movieFolders = await collectLeafMovieFolders(categoryPath);
+    for (const categoryName of categoryNames) {
+      const categoryPath = path.join(mediaRoot, categoryName);
+      const movieFolders = await collectLeafMovieFolders(categoryPath);
 
-    for (const moviePath of movieFolders) {
-      const id = stableId(`${categoryName}:${moviePath}`);
-      if (id !== movieId) continue;
+      for (const moviePath of movieFolders) {
+        const id = stableId(`${categoryName}:${moviePath}`);
+        if (id !== movieId) continue;
 
-      const movie = await scanMovieFolder(moviePath, categoryName, path.basename(moviePath), {
-        cachedMovie: cachedMovies.get(id),
-        force: options.force,
-        refreshMetadata: true
-      });
+        const movie = await scanMovieFolder(moviePath, categoryName, path.basename(moviePath), {
+          cachedMovie: cachedMovies.get(id),
+          force: options.force,
+          refreshMetadata: true
+        });
 
-      const previousMovie = options.previousMovie?.id === id ? options.previousMovie : cachedMovies.get(id);
-      if (movie && !options.force && sameActorList(movie.actors, previousMovie?.actors)) {
-        return attachMovieMediaUrls({ ...movie, actors: previousMovie.actors || [] }, { skipActorTmdb: true });
+        const previousMovie = options.previousMovie?.id === id ? options.previousMovie : cachedMovies.get(id);
+        if (movie && !options.force && sameActorList(movie.actors, previousMovie?.actors)) {
+          return attachMovieMediaUrls({ ...movie, actors: previousMovie.actors || [] }, { skipActorTmdb: true });
+        }
+
+        return movie
+          ? (await attachMovieMediaUrls(movie, {
+              forceTmdb: options.force,
+              previousActors: previousMovie?.actors || []
+            }))
+          : null;
       }
-
-      return movie
-        ? (await attachMovieMediaUrls(movie, {
-            forceTmdb: options.force,
-            previousActors: previousMovie?.actors || []
-          }))
-        : null;
     }
-  }
 
-  return null;
+    return null;
+  } finally {
+    await flushTmdbCache();
+  }
 }
 
 export function replaceMovieInDatabase(database, movie) {
@@ -501,6 +509,30 @@ function slugify(value) {
 
 function unique(values) {
   return [...new Set(values.filter(Boolean))];
+}
+
+async function mapWithConcurrency(items, concurrency, mapper) {
+  const results = new Array(items.length);
+  let nextIndex = 0;
+  let firstError = null;
+  const workerCount = Math.min(concurrency, items.length);
+
+  await Promise.all(
+    Array.from({ length: workerCount }, async () => {
+      while (nextIndex < items.length && !firstError) {
+        const index = nextIndex;
+        nextIndex += 1;
+        try {
+          results[index] = await mapper(items[index], index);
+        } catch (error) {
+          firstError ||= error;
+        }
+      }
+    })
+  );
+
+  if (firstError) throw firstError;
+  return results;
 }
 
 function ensureMediaUrls(database) {

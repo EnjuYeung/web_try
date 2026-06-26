@@ -8,6 +8,7 @@ const TMDB_MIN_REQUEST_INTERVAL_MS = 100;
 let tmdbCachePath = "";
 let tmdbCacheLoaded = false;
 let tmdbCache = { people: {} };
+let tmdbCacheDirty = false;
 let tmdbRateLimitTail = Promise.resolve();
 
 export async function configureTmdbCache(filePath) {
@@ -15,9 +16,22 @@ export async function configureTmdbCache(filePath) {
     tmdbCachePath = filePath;
     tmdbCacheLoaded = false;
     tmdbCache = { people: {} };
+    tmdbCacheDirty = false;
   }
 
   await ensureTmdbCacheLoaded();
+}
+
+export async function flushTmdbCache() {
+  if (!tmdbCachePath || !tmdbCacheDirty) return;
+
+  tmdbCacheDirty = false;
+  try {
+    await writeJson(tmdbCachePath, tmdbCache);
+  } catch (error) {
+    tmdbCacheDirty = true;
+    throw error;
+  }
 }
 
 export async function attachActorImages(actors, options = {}) {
@@ -110,10 +124,7 @@ async function setTmdbProfileCache(id, imageUrl) {
     imageUrl,
     updatedAt: new Date().toISOString()
   };
-
-  if (tmdbCachePath) {
-    await writeJson(tmdbCachePath, tmdbCache);
-  }
+  tmdbCacheDirty = true;
 }
 
 function isExpired(updatedAt, ttlMs) {

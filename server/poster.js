@@ -19,6 +19,7 @@ const MOCK_PALETTES = {
   box: ["#030712", "#8b5cf6", "#e5e7eb"],
   desert: ["#1f2937", "#f97316", "#fde68a"]
 };
+const IMAGE_CACHE_CONTROL = "private, max-age=31536000, immutable";
 
 export function sendPoster(req, res, posterIndex) {
   const movie = posterIndex.get(req.params.id);
@@ -56,7 +57,7 @@ function sendFileOrFallback(res, filePath, fallback) {
 
   const etag = fileEtag(stats);
   const lastModified = stats.mtime.toUTCString();
-  res.setHeader("Cache-Control", "private, no-cache");
+  res.setHeader("Cache-Control", IMAGE_CACHE_CONTROL);
   res.setHeader("ETag", etag);
   res.setHeader("Last-Modified", lastModified);
 
@@ -137,7 +138,7 @@ function isFreshRequest(req, etag, mtime) {
 }
 
 function setGeneratedImageCacheHeaders(res) {
-  res.setHeader("Cache-Control", "private, no-cache");
+  res.setHeader("Cache-Control", IMAGE_CACHE_CONTROL);
 }
 
 function wrapTitle(title) {
