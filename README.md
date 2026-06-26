@@ -1,6 +1,6 @@
 # NAS Movie Wall
 
-轻量私有电影海报墙，按 NAS 目录分类展示电影。默认带有 `server/data/mockMovies.json` 模拟数据库，方便没有挂载真实媒体目录时调试界面。
+轻量私有电影海报墙，按 NAS 目录分类展示电影。
 
 ## 本地开发
 
@@ -30,10 +30,10 @@ docker compose up -d --build
 访问：
 
 ```text
-http://你的-unraid-ip:17174
+http://NAS-ip:17174
 ```
 
-Unraid 映射关系：
+NAS 映射关系：
 
 ```text
 /mnt/user/Entertain/Movie -> /media/movies:ro
