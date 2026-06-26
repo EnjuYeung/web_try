@@ -44,12 +44,14 @@ export function MovieDetailPage({ movieId, onBack }) {
   }
 
   const certificationBadge = resolveCertificationBadge(movie);
-  const metadata = [
+  const primaryMetadata = [
+    metadataRating(movie.rating),
     metadataText("runtime", movie.runtime),
-    metadataCertification(movie.certification, certificationBadge),
+    metadataCertification(movie.certification, certificationBadge)
+  ].filter(Boolean);
+  const technicalMetadata = [
     metadataText("resolution", movie.resolution),
     metadataText("codec", movie.codec),
-    metadataText("bitrate", movie.bitrate),
     metadataText("hdrType", movie.hdrType),
     metadataText("audioFormat", movie.audioFormat)
   ].filter(Boolean);
@@ -78,18 +80,8 @@ export function MovieDetailPage({ movieId, onBack }) {
             )}
           </div>
 
-          <RatingStars value={movie.rating} />
-
-          {metadata.length > 0 && (
-            <div className="detail-metadata">
-              {metadata.map((item, index) => (
-                <Fragment key={item.key}>
-                  {index > 0 && <span className="detail-metadata-separator">·</span>}
-                  <span className="detail-metadata-item">{item.content}</span>
-                </Fragment>
-              ))}
-            </div>
-          )}
+          <MetadataList className="detail-primary-metadata" items={primaryMetadata} />
+          <MetadataList className="detail-metadata" items={technicalMetadata} />
           {movie.tagline && <p className="detail-tagline">{movie.tagline}</p>}
           {movie.overview && <p className="detail-overview">{movie.overview}</p>}
         </div>
@@ -114,6 +106,16 @@ function metadataText(key, value) {
   return value ? { key, content: value } : null;
 }
 
+function metadataRating(value) {
+  const rating = Number.parseFloat(value);
+  if (!Number.isFinite(rating)) return null;
+
+  return {
+    key: "rating",
+    content: <RatingStars value={value} />
+  };
+}
+
 function metadataCertification(value, badge) {
   if (!value) return null;
   if (!badge) return metadataText("certification", value);
@@ -130,6 +132,21 @@ function metadataCertification(value, badge) {
       />
     )
   };
+}
+
+function MetadataList({ className, items }) {
+  if (items.length === 0) return null;
+
+  return (
+    <div className={className}>
+      {items.map((item, index) => (
+        <Fragment key={item.key}>
+          {index > 0 && <span className="detail-metadata-separator">·</span>}
+          <span className="detail-metadata-item">{item.content}</span>
+        </Fragment>
+      ))}
+    </div>
+  );
 }
 
 function matchesBluRaySource(value) {
@@ -157,7 +174,7 @@ function RatingStars({ value }) {
   const fiveStarRating = Math.max(0, Math.min(5, rating / 2));
 
   return (
-    <div className="detail-rating" aria-label={`评分 ${value}`}>
+    <span className="detail-rating" aria-label={`评分 ${value}`}>
       {Array.from({ length: 5 }).map((_, index) => {
         const fill = Math.max(0, Math.min(100, (fiveStarRating - index) * 100));
 
@@ -168,7 +185,7 @@ function RatingStars({ value }) {
         );
       })}
       <strong>{value}</strong>
-    </div>
+    </span>
   );
 }
 

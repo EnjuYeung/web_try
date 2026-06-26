@@ -419,7 +419,7 @@ button {
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
-  gap: 15px;
+  gap: 13px;
   min-width: 0;
   max-height: var(--detail-poster-height);
   overflow: hidden;
@@ -455,15 +455,15 @@ button {
 .detail-rating {
   display: flex;
   align-items: center;
-  gap: 7px;
-  min-height: 32px;
+  gap: 5px;
+  min-height: 24px;
 }
 
 .star {
   position: relative;
   display: inline-block;
   color: rgba(148, 163, 184, 0.62);
-  font-size: clamp(24px, 2.5vw, 33px);
+  font-size: clamp(17px, 1.45vw, 20px);
   line-height: 1;
 }
 
@@ -477,19 +477,29 @@ button {
 }
 
 .detail-rating strong {
-  margin-left: 8px;
+  margin-left: 4px;
   color: color-mix(in srgb, var(--text) 86%, #000000);
-  font-size: clamp(24px, 2.4vw, 32px);
-  font-weight: 760;
+  font-size: 16px;
+  font-weight: 740;
   line-height: 1;
 }
 
+.detail-primary-metadata,
 .detail-metadata {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
   max-width: 100%;
+}
+
+.detail-primary-metadata {
+  color: color-mix(in srgb, var(--text) 86%, var(--muted));
+  font-size: 16px;
+  line-height: 1.45;
+}
+
+.detail-metadata {
   color: color-mix(in srgb, var(--text) 76%, var(--muted));
   font-size: 15px;
   line-height: 1.55;
@@ -509,7 +519,7 @@ button {
   display: block;
   width: auto;
   max-width: 92px;
-  height: 24px;
+  height: 22px;
   object-fit: contain;
 }
 
@@ -772,6 +782,7 @@ button {
     font-size: clamp(32px, 12vw, 48px);
   }
 
+  .detail-primary-metadata,
   .detail-metadata,
   .detail-overview {
     max-width: 100%;
