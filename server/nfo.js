@@ -5,6 +5,12 @@ function tagValue(xml, tag) {
   return match ? decodeXml(match[1].trim()) : "";
 }
 
+function tagValues(xml, tag) {
+  return [...xml.matchAll(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, "gi"))]
+    .map((match) => decodeXml(match[1].trim()))
+    .filter(Boolean);
+}
+
 function decodeXml(value) {
   return value
     .replaceAll("&amp;", "&")
@@ -25,9 +31,11 @@ export async function readNfo(nfoPath) {
       year: tagValue(xml, "year") || tagValue(xml, "premiered").slice(0, 4),
       rating,
       certification: tagValue(xml, "certification") || tagValue(xml, "mpaa"),
+      country: readCountries(xml),
       tagline: tagValue(xml, "tagline"),
       runtime: normalizeRuntime(tagValue(xml, "runtime")),
       overview: tagValue(xml, "plot") || tagValue(xml, "outline"),
+      source: tagValue(xml, "source"),
       resolution: video.resolution,
       codec: video.codec,
       bitrate: normalizeBitrate(video.bitrate),
@@ -102,6 +110,10 @@ function readActors(xml) {
       tmdbid: readActorTmdbId(actor)
     }))
     .filter((actor) => actor.name);
+}
+
+function readCountries(xml) {
+  return [...new Set(tagValues(xml, "country"))].join("、");
 }
 
 function readActorTmdbId(actorXml) {

@@ -23,12 +23,34 @@ export async function configureTmdbCache(filePath) {
 export async function attachActorImages(actors, options = {}) {
   const enriched = await Promise.all(
     actors.map(async (actor) => {
+      const previousActor = options.force ? null : findReusableActor(actor, options.previousActors);
+      if (previousActor?.imageUrl) {
+        return { ...actor, imageUrl: previousActor.imageUrl };
+      }
+
       const imageUrl = await fetchTmdbProfileImage(actor.tmdbid, { force: options.force });
       return imageUrl ? { ...actor, imageUrl } : null;
     })
   );
 
   return enriched.filter(Boolean);
+}
+
+function findReusableActor(actor, previousActors = []) {
+  const id = String(actor.tmdbid || "").trim();
+  if (id) {
+    const sameId = previousActors.find((previousActor) => String(previousActor.tmdbid || "").trim() === id);
+    if (sameId) return sameId;
+  }
+
+  const name = normalizeActorText(actor.name);
+  if (!name) return null;
+
+  return previousActors.find((previousActor) => normalizeActorText(previousActor.name) === name);
+}
+
+function normalizeActorText(value) {
+  return String(value || "").trim().toLowerCase();
 }
 
 async function fetchTmdbProfileImage(tmdbid, options = {}) {

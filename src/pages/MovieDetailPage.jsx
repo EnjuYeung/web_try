@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { loadMovie, rescanMovie } from "../api/movies";
 import { RescanButton } from "../components/RescanButton";
+import { resolveCertificationBadge } from "../ratingBadges";
 
-export function MovieDetailPage({ movieId, onNavigate }) {
+export function MovieDetailPage({ movieId, onBack }) {
   const [movie, setMovie] = useState(null);
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
@@ -37,27 +38,29 @@ export function MovieDetailPage({ movieId, onNavigate }) {
   if (error || !movie) {
     return (
       <main className="detail-page detail-page--empty" aria-label="电影详情页">
-        <DetailNav onNavigate={onNavigate} onRescan={rescan} scanning={scanning} />
+        <DetailNav onBack={onBack} onRescan={rescan} scanning={scanning} />
       </main>
     );
   }
 
+  const certificationBadge = resolveCertificationBadge(movie);
   const metadata = [
-    movie.runtime,
-    movie.certification,
-    movie.resolution,
-    movie.codec,
-    movie.bitrate,
-    movie.hdrType,
-    movie.audioFormat
+    metadataText("runtime", movie.runtime),
+    metadataCertification(movie.certification, certificationBadge),
+    metadataText("resolution", movie.resolution),
+    metadataText("codec", movie.codec),
+    metadataText("bitrate", movie.bitrate),
+    metadataText("hdrType", movie.hdrType),
+    metadataText("audioFormat", movie.audioFormat)
   ].filter(Boolean);
+  const isBluRaySource = matchesBluRaySource(movie.source);
 
   return (
     <main className="detail-page" aria-label="电影详情页">
       <img className="detail-backdrop" src={movie.artworkUrl} alt="" />
       <div className="detail-backdrop-shade" />
 
-      <DetailNav onNavigate={onNavigate} onRescan={rescan} scanning={scanning} />
+      <DetailNav onBack={onBack} onRescan={rescan} scanning={scanning} />
 
       <section className="detail-hero">
         <div className="detail-poster">
@@ -68,11 +71,25 @@ export function MovieDetailPage({ movieId, onNavigate }) {
           <div className="detail-title-row">
             {movie.title && <h1>{movie.title}</h1>}
             {movie.year && <span className="detail-title-year">{movie.year}</span>}
+            {isBluRaySource && (
+              <span className="detail-title-source" aria-label="Blu-ray" title="Blu-ray">
+                💿
+              </span>
+            )}
           </div>
 
           <RatingStars value={movie.rating} />
 
-          {metadata.length > 0 && <div className="detail-metadata">{metadata.join(" · ")}</div>}
+          {metadata.length > 0 && (
+            <div className="detail-metadata">
+              {metadata.map((item, index) => (
+                <Fragment key={item.key}>
+                  {index > 0 && <span className="detail-metadata-separator">·</span>}
+                  <span className="detail-metadata-item">{item.content}</span>
+                </Fragment>
+              ))}
+            </div>
+          )}
           {movie.tagline && <p className="detail-tagline">{movie.tagline}</p>}
           {movie.overview && <p className="detail-overview">{movie.overview}</p>}
         </div>
@@ -93,10 +110,39 @@ export function MovieDetailPage({ movieId, onNavigate }) {
   );
 }
 
-function DetailNav({ onNavigate, onRescan, scanning }) {
+function metadataText(key, value) {
+  return value ? { key, content: value } : null;
+}
+
+function metadataCertification(value, badge) {
+  if (!value) return null;
+  if (!badge) return metadataText("certification", value);
+
+  return {
+    key: "certification",
+    content: (
+      <img
+        className="detail-certification-badge"
+        src={badge.src}
+        alt={`${value} 分级`}
+        title={value}
+        draggable="false"
+      />
+    )
+  };
+}
+
+function matchesBluRaySource(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "")
+    .includes("bluray");
+}
+
+function DetailNav({ onBack, onRescan, scanning }) {
   return (
     <div className="detail-nav">
-      <button className="detail-back" onClick={() => onNavigate("/")} type="button" aria-label="返回电影墙">
+      <button className="detail-back" onClick={onBack} type="button" aria-label="返回上一页">
         <BackIcon />
       </button>
       <RescanButton disabled={scanning} onClick={() => onRescan()} onForceClick={() => onRescan({ force: true })} />

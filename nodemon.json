@@ -1,0 +1,5 @@
+{
+  "watch": ["server"],
+  "ext": "js,json",
+  "ignore": ["server/data/scan-cache.json", "server/data/tmdb-cache.json"]
+}

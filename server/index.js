@@ -20,6 +20,10 @@ app.get("/api/movies", (_req, res) => {
   res.json(movieLibrary.getDatabase());
 });
 
+app.get("/api/movie-categories", async (_req, res) => {
+  res.json({ categories: await movieLibrary.listCategories() });
+});
+
 app.get("/api/movies/:id", (req, res) => {
   const movie = movieLibrary.getMovie(req.params.id);
   if (!movie) {
@@ -32,6 +36,12 @@ app.get("/api/movies/:id", (req, res) => {
 
 app.post("/api/scan", async (req, res) => {
   const database = await movieLibrary.runFullScan({ force: isForceRequest(req), reason: "manual" });
+  res.json(database);
+});
+
+app.post("/api/scan/categories", async (req, res) => {
+  const categories = Array.isArray(req.body?.categories) ? req.body.categories : [];
+  const database = await movieLibrary.runCategoryScan(categories, { force: isForceRequest(req) });
   res.json(database);
 });
 

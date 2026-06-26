@@ -1,0 +1,38 @@
+{
+  "id": "taiwan",
+  "name": "台湾分级",
+  "description": "Taiwan movie rating badges for 0+, 6+, 12+, 15+, and 18+. Wikimedia SVG and PNG downloads were unavailable during asset creation, so these are project-drawn SVG recreations based on the referenced file pages.",
+  "sourcePage": "https://zh.wikipedia.org/wiki/%E9%9B%BB%E5%BD%B1%E5%88%86%E7%B4%9A%E5%88%B6%E5%BA%A6#%E4%B8%AD%E8%8F%AF%E6%B0%91%E5%9C%8B%EF%BC%88%E8%87%BA%E7%81%A3%EF%BC%89",
+  "ratings": [
+    {
+      "value": "0+",
+      "label": "0+",
+      "asset": "./0-plus.svg",
+      "source": "https://commons.wikimedia.org/wiki/File:GSRR_G_logo.svg"
+    },
+    {
+      "value": "6+",
+      "label": "6+",
+      "asset": "./6-plus.svg",
+      "source": "https://commons.wikimedia.org/wiki/File:GSRR_P_logo.svg"
+    },
+    {
+      "value": "12+",
+      "label": "12+",
+      "asset": "./12-plus.svg",
+      "source": "https://commons.wikimedia.org/wiki/File:GSRR_PG_12_logo.svg"
+    },
+    {
+      "value": "15+",
+      "label": "15+",
+      "asset": "./15-plus.svg",
+      "source": "https://commons.wikimedia.org/wiki/File:GSRR_PG_15_logo.svg"
+    },
+    {
+      "value": "18+",
+      "label": "18+",
+      "asset": "./18-plus.svg",
+      "source": "https://commons.wikimedia.org/wiki/File:GSRR_R_logo.svg"
+    }
+  ]
+}

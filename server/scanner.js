@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import path from "node:path";
-import { readdir, readFile, stat } from "node:fs/promises";
+import { open, readdir, readFile, stat } from "node:fs/promises";
 import { isMetadataCacheFresh, loadCachedMovieMap, loadDatabaseCache, pickCachedMetadata, writeDatabaseCache } from "./metadataCache.js";
 import { readNfo } from "./nfo.js";
 import { attachActorImages, configureTmdbCache } from "./tmdb.js";
@@ -9,6 +9,8 @@ const DEFAULT_CATEGORIES = ["其他电影", "欧美电影", "日韩电影", "动
 const VIDEO_EXTENSIONS = new Set([".mkv", ".mp4", ".avi", ".mov", ".wmv", ".flv", ".m4v", ".ts", ".webm"]);
 const IMAGE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp"]);
 const POSTER_PRIORITY = ["poster", "folder", "cover", "movie", "海报"];
+const ARTWORK_NAME_PARTS = ["fanart", "backdrop", "background", "artwork"];
+const IMAGE_HEADER_BYTES = 512 * 1024;
 
 export async function loadMovieDatabase({ mediaRoot, mockDbPath, cachePath, tmdbCachePath: configuredTmdbCachePath }) {
   await configureTmdbCache(configuredTmdbCachePath);
@@ -23,13 +25,14 @@ export async function loadMovieDatabase({ mediaRoot, mockDbPath, cachePath, tmdb
 
 export async function scanMovies(mediaRoot, options = {}) {
   await configureTmdbCache(options.tmdbCachePath);
-  const cachedMovies = options.force ? new Map() : await loadCachedMovieMap(options.cachePath);
+  const cachedMovies = await loadCachedMovieMap(options.cachePath);
+  const previousMovies = options.previousMovies || cachedMovies;
   const categories = [];
-  const entries = await safeReadDir(mediaRoot);
-  const foundCategoryNames = entries
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => entry.name);
-  const categoryNames = unique([...DEFAULT_CATEGORIES, ...foundCategoryNames]);
+  const foundCategoryNames = await listMovieCategories(mediaRoot);
+  const requestedCategories = new Set(options.categories || []);
+  const categoryNames = unique([...DEFAULT_CATEGORIES, ...foundCategoryNames]).filter(
+    (categoryName) => requestedCategories.size === 0 || requestedCategories.has(categoryName)
+  );
 
   for (const categoryName of categoryNames) {
     const categoryPath = path.join(mediaRoot, categoryName);
@@ -37,9 +40,12 @@ export async function scanMovies(mediaRoot, options = {}) {
     const movies = [];
 
     for (const moviePath of movieFolders) {
+      const id = stableId(`${categoryName}:${moviePath}`);
+      const cachedMovie = cachedMovies.get(id);
       const movie = await scanMovieFolder(moviePath, categoryName, path.basename(moviePath), {
-        cachedMovie: cachedMovies.get(stableId(`${categoryName}:${moviePath}`)),
-        force: options.force
+        cachedMovie,
+        force: options.force,
+        refreshMetadata: Boolean(cachedMovie) && !options.force
       });
       if (movie) movies.push(movie);
     }
@@ -56,18 +62,23 @@ export async function scanMovies(mediaRoot, options = {}) {
     updatedAt: new Date().toISOString(),
     mediaRoot,
     categories: categories.filter((category) => category.movies.length > 0)
-  }, { forceTmdb: options.force });
+  }, { forceTmdb: options.force, previousMovies });
 
-  if (options.cachePath) {
+  if (options.cachePath && options.writeCache !== false) {
     await writeDatabaseCache(options.cachePath, database);
   }
 
   return database;
 }
 
+export async function listMovieCategories(mediaRoot) {
+  const entries = await safeReadDir(mediaRoot);
+  return entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort((a, b) => a.localeCompare(b, "zh-CN"));
+}
+
 export async function scanMovieById(mediaRoot, movieId, options = {}) {
   await configureTmdbCache(options.tmdbCachePath);
-  const cachedMovies = options.force ? new Map() : await loadCachedMovieMap(options.cachePath);
+  const cachedMovies = await loadCachedMovieMap(options.cachePath);
   const entries = await safeReadDir(mediaRoot);
   const foundCategoryNames = entries
     .filter((entry) => entry.isDirectory())
@@ -84,10 +95,21 @@ export async function scanMovieById(mediaRoot, movieId, options = {}) {
 
       const movie = await scanMovieFolder(moviePath, categoryName, path.basename(moviePath), {
         cachedMovie: cachedMovies.get(id),
-        force: options.force
+        force: options.force,
+        refreshMetadata: true
       });
 
-      return movie ? (await attachMovieMediaUrls(movie, { forceTmdb: options.force })) : null;
+      const previousMovie = options.previousMovie?.id === id ? options.previousMovie : cachedMovies.get(id);
+      if (movie && !options.force && sameActorList(movie.actors, previousMovie?.actors)) {
+        return attachMovieMediaUrls({ ...movie, actors: previousMovie.actors || [] }, { skipActorTmdb: true });
+      }
+
+      return movie
+        ? (await attachMovieMediaUrls(movie, {
+            forceTmdb: options.force,
+            previousActors: previousMovie?.actors || []
+          }))
+        : null;
     }
   }
 
@@ -157,15 +179,24 @@ async function scanMovieFolder(moviePath, category, folderName, options = {}) {
   const canUseCachedMetadata =
     options.cachedMovie &&
     !options.force &&
+    !options.refreshMetadata &&
+    Object.hasOwn(options.cachedMovie, "source") &&
+    Object.hasOwn(options.cachedMovie, "country") &&
     isMetadataCacheFresh(options.cachedMovie);
   const nfo = canUseCachedMetadata ? pickCachedMetadata(options.cachedMovie) : nfoFile ? await readNfo(path.join(moviePath, nfoFile)) : {};
   const fallback = parseFolderName(folderName);
-  const posterFile = pickPoster(files);
-  const artworkFile = pickArtwork(files);
+  const imageSignature = await buildImageSignature(moviePath, files);
+  const canReuseMediaSelection =
+    options.cachedMovie &&
+    !options.force &&
+    options.cachedMovie.imageSignature === imageSignature &&
+    Object.hasOwn(options.cachedMovie, "imageSignature");
+  const posterFile = canReuseMediaSelection ? "" : await pickPoster(moviePath, files);
+  const artworkFile = canReuseMediaSelection ? "" : await pickArtwork(moviePath, files);
   const id = stableId(`${category}:${moviePath}`);
-  const posterPath = posterFile ? path.join(moviePath, posterFile) : options.cachedMovie?.posterPath || "";
-  const artworkPath = artworkFile ? path.join(moviePath, artworkFile) : options.cachedMovie?.artworkPath || "";
-  const mediaVersion = await buildMediaVersion([posterPath, artworkPath]);
+  const posterPath = canReuseMediaSelection ? options.cachedMovie.posterPath || "" : posterFile ? path.join(moviePath, posterFile) : "";
+  const artworkPath = canReuseMediaSelection ? options.cachedMovie.artworkPath || "" : artworkFile ? path.join(moviePath, artworkFile) : "";
+  const mediaVersion = canReuseMediaSelection ? options.cachedMovie.mediaVersion || "" : await buildMediaVersion([posterPath, artworkPath]);
 
   return {
     id,
@@ -174,16 +205,19 @@ async function scanMovieFolder(moviePath, category, folderName, options = {}) {
     year: nfo.year || fallback.year,
     rating: nfo.rating || "",
     certification: nfo.certification || "",
+    country: nfo.country || "",
     tagline: nfo.tagline || "",
     runtime: nfo.runtime || "",
     overview: nfo.overview || "",
-    resolution: nfo.resolution || "",
-    codec: nfo.codec || "",
+    source: nfo.source || "",
+    resolution: uppercaseEnglish(nfo.resolution || ""),
+    codec: uppercaseEnglish(nfo.codec || ""),
     bitrate: nfo.bitrate || "",
-    hdrType: nfo.hdrType || "",
+    hdrType: uppercaseEnglish(nfo.hdrType || ""),
     audioFormat: nfo.audioFormat || "",
     actors: nfo.actors || [],
     metadataCachedAt: canUseCachedMetadata ? options.cachedMovie.metadataCachedAt || options.cachedMovie.updatedAt : new Date().toISOString(),
+    imageSignature,
     mediaVersion,
     category,
     folderName,
@@ -195,23 +229,176 @@ async function scanMovieFolder(moviePath, category, folderName, options = {}) {
   };
 }
 
-function pickPoster(files) {
+async function pickPoster(moviePath, files) {
   const images = files.filter((file) => IMAGE_EXTENSIONS.has(path.extname(file).toLowerCase()));
   if (images.length === 0) return "";
+  const nonArtworkImages = images.filter((file) => !isArtworkFile(file));
+  const posterCandidates = nonArtworkImages.length > 0 ? nonArtworkImages : images;
 
-  const scored = images.map((file) => {
+  const scored = await Promise.all(posterCandidates.map(async (file) => {
     const base = path.basename(file, path.extname(file)).toLowerCase();
     const priority = POSTER_PRIORITY.findIndex((name) => base.includes(name));
-    return { file, score: priority === -1 ? 99 : priority };
-  });
+    const dimensions = await readImageDimensions(path.join(moviePath, file));
+    return { file, area: dimensions.area, score: priority === -1 ? 99 : priority };
+  }));
 
-  scored.sort((a, b) => a.score - b.score || a.file.localeCompare(b.file));
+  scored.sort((a, b) => b.area - a.area || a.score - b.score || a.file.localeCompare(b.file));
   return scored[0].file;
 }
 
-function pickArtwork(files) {
-  const images = files.filter((file) => IMAGE_EXTENSIONS.has(path.extname(file).toLowerCase()));
-  return images.find((file) => path.basename(file, path.extname(file)).toLowerCase().includes("fanart")) || "";
+async function pickArtwork(moviePath, files) {
+  const images = files.filter(
+    (file) =>
+      IMAGE_EXTENSIONS.has(path.extname(file).toLowerCase()) &&
+      path.basename(file, path.extname(file)).toLowerCase().includes("fanart")
+  );
+  if (images.length === 0) return "";
+
+  const scored = await Promise.all(images.map(async (file, index) => {
+    const dimensions = await readImageDimensions(path.join(moviePath, file));
+    return { file, area: dimensions.area, index };
+  }));
+
+  scored.sort((a, b) => b.area - a.area || a.index - b.index);
+  return scored[0].file;
+}
+
+function isArtworkFile(file) {
+  const base = path.basename(file, path.extname(file)).toLowerCase();
+  return ARTWORK_NAME_PARTS.some((name) => base.includes(name));
+}
+
+async function readImageDimensions(filePath) {
+  let handle;
+
+  try {
+    handle = await open(filePath, "r");
+    const buffer = Buffer.alloc(IMAGE_HEADER_BYTES);
+    const { bytesRead } = await handle.read(buffer, 0, IMAGE_HEADER_BYTES, 0);
+    return normalizeDimensions(parseImageDimensions(buffer.subarray(0, bytesRead)));
+  } catch {
+    return { width: 0, height: 0, area: 0 };
+  } finally {
+    await handle?.close();
+  }
+}
+
+async function buildImageSignature(moviePath, files) {
+  const imageFiles = files.filter((file) => IMAGE_EXTENSIONS.has(path.extname(file).toLowerCase())).sort((a, b) => a.localeCompare(b));
+  const parts = [];
+
+  for (const file of imageFiles) {
+    try {
+      const stats = await stat(path.join(moviePath, file));
+      parts.push(`${file}:${stats.size}:${Math.trunc(stats.mtimeMs)}`);
+    } catch {
+      parts.push(`${file}:missing`);
+    }
+  }
+
+  return parts.join("|");
+}
+
+function parseImageDimensions(buffer) {
+  return parsePngDimensions(buffer) || parseJpegDimensions(buffer) || parseWebpDimensions(buffer);
+}
+
+function parsePngDimensions(buffer) {
+  if (buffer.length < 24 || buffer.toString("ascii", 1, 4) !== "PNG") return null;
+  return {
+    width: buffer.readUInt32BE(16),
+    height: buffer.readUInt32BE(20)
+  };
+}
+
+function parseJpegDimensions(buffer) {
+  if (buffer.length < 4 || buffer[0] !== 0xff || buffer[1] !== 0xd8) return null;
+
+  let offset = 2;
+  while (offset < buffer.length) {
+    if (buffer[offset] !== 0xff) {
+      offset += 1;
+      continue;
+    }
+
+    while (buffer[offset] === 0xff) offset += 1;
+    const marker = buffer[offset];
+    offset += 1;
+
+    if (marker === 0xd9 || marker === 0xda || offset + 2 > buffer.length) break;
+
+    const segmentLength = buffer.readUInt16BE(offset);
+    if (segmentLength < 2) break;
+
+    if (isJpegStartOfFrame(marker) && offset + 7 <= buffer.length) {
+      return {
+        height: buffer.readUInt16BE(offset + 3),
+        width: buffer.readUInt16BE(offset + 5)
+      };
+    }
+
+    offset += segmentLength;
+  }
+
+  return null;
+}
+
+function isJpegStartOfFrame(marker) {
+  return (
+    (marker >= 0xc0 && marker <= 0xc3) ||
+    (marker >= 0xc5 && marker <= 0xc7) ||
+    (marker >= 0xc9 && marker <= 0xcb) ||
+    (marker >= 0xcd && marker <= 0xcf)
+  );
+}
+
+function parseWebpDimensions(buffer) {
+  if (buffer.length < 30 || buffer.toString("ascii", 0, 4) !== "RIFF" || buffer.toString("ascii", 8, 12) !== "WEBP") {
+    return null;
+  }
+
+  const chunkType = buffer.toString("ascii", 12, 16);
+  if (chunkType === "VP8X") {
+    return {
+      width: readUInt24LE(buffer, 24) + 1,
+      height: readUInt24LE(buffer, 27) + 1
+    };
+  }
+
+  if (chunkType === "VP8L" && buffer[20] === 0x2f) {
+    const bits = buffer.readUInt32LE(21);
+    return {
+      width: (bits & 0x3fff) + 1,
+      height: ((bits >> 14) & 0x3fff) + 1
+    };
+  }
+
+  if (chunkType === "VP8 " && buffer[23] === 0x9d && buffer[24] === 0x01 && buffer[25] === 0x2a) {
+    return {
+      width: buffer.readUInt16LE(26) & 0x3fff,
+      height: buffer.readUInt16LE(28) & 0x3fff
+    };
+  }
+
+  return null;
+}
+
+function readUInt24LE(buffer, offset) {
+  return buffer[offset] | (buffer[offset + 1] << 8) | (buffer[offset + 2] << 16);
+}
+
+function normalizeDimensions(dimensions) {
+  const width = Number(dimensions?.width || 0);
+  const height = Number(dimensions?.height || 0);
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+    return { width: 0, height: 0, area: 0 };
+  }
+
+  return { width, height, area: width * height };
+}
+
+function uppercaseEnglish(value) {
+  return String(value).replace(/[a-z]/g, (letter) => letter.toUpperCase());
 }
 
 function parseFolderName(folderName) {
@@ -244,7 +431,13 @@ async function attachMediaUrls(database, options = {}) {
   for (const category of database.categories || []) {
     const movies = [];
     for (const movie of category.movies || []) {
-      movies.push(await attachMovieMediaUrls(movie, options));
+      const previousMovie = options.previousMovies?.get(movie.id);
+      if (movie && !options.forceTmdb && sameActorList(movie.actors, previousMovie?.actors)) {
+        movies.push(await attachMovieMediaUrls({ ...movie, actors: previousMovie.actors || [] }, { ...options, skipActorTmdb: true }));
+        continue;
+      }
+
+      movies.push(await attachMovieMediaUrls(movie, { ...options, previousActors: previousMovie?.actors || [] }));
     }
 
     categories.push({ ...category, movies });
@@ -264,8 +457,31 @@ async function attachMovieMediaUrls(movie, options = {}) {
     mediaVersion,
     posterUrl: mediaUrl(`/api/posters/${movie.id}`, mediaVersion),
     artworkUrl: mediaUrl(`/api/artwork/${movie.id}`, mediaVersion),
-    actors: await attachActorImages(movie.actors || [], { force: options.forceTmdb })
+    actors: options.skipActorTmdb
+      ? movie.actors || []
+      : await attachActorImages(movie.actors || [], {
+          force: options.forceTmdb,
+          previousActors: options.previousActors || []
+        })
   };
+}
+
+function sameActorList(nextActors = [], previousActors = []) {
+  if (!Array.isArray(previousActors) || nextActors.length !== previousActors.length) return false;
+
+  return nextActors.every((actor, index) => sameActorIdentity(actor, previousActors[index]));
+}
+
+function sameActorIdentity(actor, previousActor) {
+  return (
+    normalizeActorField(actor?.tmdbid) === normalizeActorField(previousActor?.tmdbid) &&
+    normalizeActorField(actor?.name) === normalizeActorField(previousActor?.name) &&
+    normalizeActorField(actor?.role) === normalizeActorField(previousActor?.role)
+  );
+}
+
+function normalizeActorField(value) {
+  return String(value || "").trim();
 }
 
 function stableId(value) {

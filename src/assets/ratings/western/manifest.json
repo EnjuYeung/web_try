@@ -1,0 +1,37 @@
+{
+  "id": "western",
+  "name": "欧美分级",
+  "description": "Western/MPA-style movie rating badges sourced from Wikimedia file pages. These files may contain trademarked MPA rating marks.",
+  "ratings": [
+    {
+      "value": "G",
+      "label": "G",
+      "asset": "./g.svg",
+      "source": "https://en.wikipedia.org/wiki/File:MPA_G_RATING_(block).svg"
+    },
+    {
+      "value": "PG",
+      "label": "PG",
+      "asset": "./pg.svg",
+      "source": "https://en.wikipedia.org/wiki/File:MPA_PG_RATING_(block).svg"
+    },
+    {
+      "value": "PG-13",
+      "label": "PG-13",
+      "asset": "./pg-13.svg",
+      "source": "https://en.wikipedia.org/wiki/File:MPA_PG-13_RATING_(block).svg"
+    },
+    {
+      "value": "R",
+      "label": "R",
+      "asset": "./r.svg",
+      "source": "https://en.wikipedia.org/wiki/File:MPA_R_RATING_(block).svg"
+    },
+    {
+      "value": "NC-17",
+      "label": "NC-17",
+      "asset": "./nc-17.svg",
+      "source": "https://en.wikipedia.org/wiki/File:MPA_NC-17_RATING_(block).svg"
+    }
+  ]
+}

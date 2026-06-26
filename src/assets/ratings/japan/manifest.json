@@ -1,0 +1,32 @@
+{
+  "id": "japan",
+  "name": "日本分级",
+  "description": "Japanese Eirin-style movie rating badges for G, PG12, R15+, and R18+. Original SVG/PNG downloads from Wikimedia were unavailable during asset creation, so these are project-drawn SVG recreations based on the referenced file pages.",
+  "sourcePage": "https://zh.wikipedia.org/wiki/%E6%98%A0%E7%95%AB%E5%80%AB%E7%90%86%E6%A9%9F%E6%A7%8B",
+  "ratings": [
+    {
+      "value": "G",
+      "label": "G",
+      "asset": "./g.svg",
+      "source": "https://commons.wikimedia.org/wiki/File:Eirin_Rated_G.svg"
+    },
+    {
+      "value": "PG12",
+      "label": "PG12",
+      "asset": "./pg12.svg",
+      "source": "https://commons.wikimedia.org/wiki/File:Eirin_Rated_PG12.svg"
+    },
+    {
+      "value": "R15+",
+      "label": "R15+",
+      "asset": "./r15-plus.svg",
+      "source": "https://commons.wikimedia.org/wiki/File:Eirin_Rated_R15%2B.svg"
+    },
+    {
+      "value": "R18+",
+      "label": "R18+",
+      "asset": "./r18-plus.svg",
+      "source": "https://commons.wikimedia.org/wiki/File:Eirin_Rated_R18%2B.svg"
+    }
+  ]
+}

@@ -18,6 +18,22 @@ export async function rescanMovies(options = {}) {
   return response.json();
 }
 
+export async function loadMovieCategories() {
+  const response = await fetch(`${API_BASE}/api/movie-categories`);
+  if (!response.ok) throw new Error("分类文件夹加载失败");
+  return response.json();
+}
+
+export async function rescanMovieCategories(categories, options = {}) {
+  const response = await fetch(withForce(`${API_BASE}/api/scan/categories`, options.force), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ categories })
+  });
+  if (!response.ok) throw new Error("分类刷新失败，请检查 Docker 挂载路径");
+  return response.json();
+}
+
 export async function rescanMovie(movieId, options = {}) {
   const response = await fetch(withForce(`${API_BASE}/api/movies/${encodeURIComponent(movieId)}/scan`, options.force), { method: "POST" });
   if (!response.ok) throw new Error("电影刷新失败，请检查 Docker 挂载路径");
