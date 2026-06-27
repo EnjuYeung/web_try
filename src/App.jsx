@@ -6,6 +6,7 @@ import { getSystemTheme } from "./utils/theme";
 export function App() {
   const [route, setRoute] = useState(() => getCurrentRoute());
   const [theme, setTheme] = useState(() => getSystemTheme());
+  const [selectedCategories, setSelectedCategories] = useState([]);
 
   useEffect(() => {
     if (!Number.isInteger(window.history.state?.appIndex)) {
@@ -64,7 +65,17 @@ export function App() {
     return <MovieDetailPage movieId={route.movieId} onBack={goBackOrHome} />;
   }
 
-  return <MovieWallPage onNavigate={navigate} onSearchChange={updateSearchQuery} onThemeChange={setTheme} searchQuery={route.searchQuery} theme={theme} />;
+  return (
+    <MovieWallPage
+      onNavigate={navigate}
+      onSearchChange={updateSearchQuery}
+      onSelectedCategoriesChange={setSelectedCategories}
+      onThemeChange={setTheme}
+      searchQuery={route.searchQuery}
+      selectedCategories={selectedCategories}
+      theme={theme}
+    />
+  );
 }
 
 function getCurrentRoute() {

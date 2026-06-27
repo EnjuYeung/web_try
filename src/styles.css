@@ -107,9 +107,50 @@ button {
 }
 
 .brand {
+  flex: 0 0 auto;
   font-size: 25px;
   font-weight: 800;
   letter-spacing: 0;
+}
+
+.brand-panel {
+  min-width: 0;
+}
+
+.brand-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.category-filters {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.category-filter {
+  min-height: 30px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 4px 11px;
+  color: var(--muted);
+  background: var(--control-bg);
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+.category-filter:hover {
+  border-color: rgba(37, 99, 235, 0.5);
+  color: var(--text);
+}
+
+.category-filter--active {
+  border-color: var(--control-active);
+  color: var(--control-active-text);
+  background: var(--control-active);
 }
 
 .source-line {
@@ -705,6 +746,10 @@ button {
     gap: 14px;
   }
 
+  .brand-row {
+    align-items: flex-start;
+  }
+
   .toolbar {
     width: 100%;
     min-width: 0;
@@ -726,6 +771,11 @@ button {
 
   .brand {
     font-size: 22px;
+  }
+
+  .brand-row {
+    flex-direction: column;
+    gap: 10px;
   }
 
   .toolbar {

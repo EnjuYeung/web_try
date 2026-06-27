@@ -4,9 +4,17 @@ import { LoadingGrid } from "../components/LoadingGrid";
 import { MovieCard } from "../components/MovieCard";
 import { RescanButton } from "../components/RescanButton";
 import { ThemeToggle } from "../components/ThemeToggle";
-import { compareMoviesByTitle, flattenMovies, movieCount } from "../utils/movies";
+import { compareMoviesByTitle, flattenMovies } from "../utils/movies";
 
-export function MovieWallPage({ onNavigate, searchQuery = "", onSearchChange, theme, onThemeChange }) {
+export function MovieWallPage({
+  onNavigate,
+  searchQuery = "",
+  onSearchChange,
+  selectedCategories = [],
+  onSelectedCategoriesChange,
+  theme,
+  onThemeChange
+}) {
   const [database, setDatabase] = useState(null);
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
@@ -15,14 +23,28 @@ export function MovieWallPage({ onNavigate, searchQuery = "", onSearchChange, th
   const [categoryPickerOpen, setCategoryPickerOpen] = useState(false);
   const [categoryLoading, setCategoryLoading] = useState(false);
   const [categoryOptions, setCategoryOptions] = useState([]);
-  const [selectedCategories, setSelectedCategories] = useState([]);
+  const [scanCategoryOptions, setScanCategoryOptions] = useState([]);
+  const [selectedScanCategories, setSelectedScanCategories] = useState([]);
 
   useEffect(() => {
     setError("");
     loadMovies()
-      .then(setDatabase)
+      .then((result) => {
+        setDatabase(result);
+        setCategoryOptions((current) =>
+          current.length > 0 ? current : (result.categories || []).map((category) => category.name)
+        );
+      })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
+
+    loadMovieCategories()
+      .then((result) => {
+        if (result.categories?.length > 0) {
+          setCategoryOptions(result.categories);
+        }
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -47,8 +69,8 @@ export function MovieWallPage({ onNavigate, searchQuery = "", onSearchChange, th
     setError("");
     try {
       const result = await loadMovieCategories();
-      setCategoryOptions(result.categories || []);
-      setSelectedCategories([]);
+      setScanCategoryOptions(result.categories || []);
+      setSelectedScanCategories([]);
     } catch (err) {
       setError(err.message);
       setCategoryPickerOpen(false);
@@ -58,13 +80,13 @@ export function MovieWallPage({ onNavigate, searchQuery = "", onSearchChange, th
   }
 
   async function rescanSelectedCategories() {
-    if (selectedCategories.length === 0) return;
+    if (selectedScanCategories.length === 0) return;
 
     setScanning(true);
     setError("");
     setCategoryPickerOpen(false);
     try {
-      setDatabase(await rescanMovieCategories(selectedCategories));
+      setDatabase(await rescanMovieCategories(selectedScanCategories));
     } catch (err) {
       setError(err.message);
     } finally {
@@ -84,7 +106,7 @@ export function MovieWallPage({ onNavigate, searchQuery = "", onSearchChange, th
   }
 
   function toggleCategory(categoryName) {
-    setSelectedCategories((current) =>
+    setSelectedScanCategories((current) =>
       current.includes(categoryName)
         ? current.filter((name) => name !== categoryName)
         : [...current, categoryName]
@@ -93,7 +115,9 @@ export function MovieWallPage({ onNavigate, searchQuery = "", onSearchChange, th
 
   const movies = useMemo(() => {
     const value = query.trim().toLowerCase();
-    const source = flattenMovies(database);
+    const source = flattenMovies(database).filter(
+      (movie) => selectedCategories.length === 0 || selectedCategories.includes(movie.category)
+    );
     const filtered = value
       ? source.filter((movie) =>
           [movie.title, movie.originalTitle, movie.year, movie.rating]
@@ -103,14 +127,39 @@ export function MovieWallPage({ onNavigate, searchQuery = "", onSearchChange, th
       : source;
 
     return filtered.sort(compareMoviesByTitle);
-  }, [database, query]);
+  }, [database, query, selectedCategories]);
+
+  function toggleFilterCategory(categoryName) {
+    const nextCategories = selectedCategories.includes(categoryName)
+      ? selectedCategories.filter((name) => name !== categoryName)
+      : [...selectedCategories, categoryName];
+    onSelectedCategoriesChange?.(nextCategories);
+  }
 
   return (
     <main className="app-shell">
       <header className="topbar">
-        <div>
-          <div className="brand">Juen&apos;s</div>
-          <div className="source-line">{movieCount(database)} 部影片</div>
+        <div className="brand-panel">
+          <div className="brand-row">
+            <div className="brand">Juen&apos;s</div>
+            <nav aria-label="电影分类筛选" className="category-filters">
+              {categoryOptions.map((categoryName) => {
+                const selected = selectedCategories.includes(categoryName);
+                return (
+                  <button
+                    aria-pressed={selected}
+                    className={selected ? "category-filter category-filter--active" : "category-filter"}
+                    key={categoryName}
+                    onClick={() => toggleFilterCategory(categoryName)}
+                    type="button"
+                  >
+                    {categoryName}
+                  </button>
+                );
+              })}
+            </nav>
+          </div>
+          <div className="source-line">{loading ? 0 : movies.length} 部影片</div>
         </div>
         <div className="toolbar">
           <input
@@ -145,12 +194,12 @@ export function MovieWallPage({ onNavigate, searchQuery = "", onSearchChange, th
 
       {categoryPickerOpen && (
         <CategoryPickerDialog
-          categories={categoryOptions}
+          categories={scanCategoryOptions}
           loading={categoryLoading}
           onClose={() => setCategoryPickerOpen(false)}
           onConfirm={rescanSelectedCategories}
           onToggle={toggleCategory}
-          selectedCategories={selectedCategories}
+          selectedCategories={selectedScanCategories}
         />
       )}
     </main>
