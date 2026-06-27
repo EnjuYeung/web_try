@@ -51,7 +51,7 @@ export function MovieDetailPage({ movieId, onBack }) {
   ].filter(Boolean);
   const technicalMetadata = [
     metadataText("resolution", movie.resolution),
-    metadataText("codec", movie.codec),
+    metadataText("bitrate", movie.bitrate),
     metadataText("hdrType", movie.hdrType),
     metadataText("audioFormat", movie.audioFormat)
   ].filter(Boolean);

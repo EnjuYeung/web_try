@@ -10,7 +10,7 @@ RUN npm run build
 
 FROM node:22-alpine AS runtime
 WORKDIR /app
-RUN apk add --no-cache tzdata
+RUN apk add --no-cache ffmpeg tzdata
 ENV NODE_ENV=production
 ENV PORT=3000
 ENV MEDIA_ROOT=/media/movies

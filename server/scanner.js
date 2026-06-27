@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import path from "node:path";
 import { open, readdir, readFile, stat } from "node:fs/promises";
+import { readMediaBitrate } from "./mediaProbe.js";
 import { isMetadataCacheFresh, loadCachedMovieMap, loadDatabaseCache, pickCachedMetadata, writeDatabaseCache } from "./metadataCache.js";
 import { readNfo } from "./nfo.js";
 import { attachActorImages, configureTmdbCache, flushTmdbCache } from "./tmdb.js";
@@ -12,6 +13,7 @@ const POSTER_PRIORITY = ["poster", "folder", "cover", "movie", "海报"];
 const ARTWORK_NAME_PARTS = ["fanart", "backdrop", "background", "artwork"];
 const IMAGE_HEADER_BYTES = 512 * 1024;
 const MOVIE_SCAN_CONCURRENCY = 10;
+const MEDIA_METADATA_VERSION = 1;
 
 export async function loadMovieDatabase({ mediaRoot, mockDbPath, cachePath, tmdbCachePath: configuredTmdbCachePath }) {
   await configureTmdbCache(configuredTmdbCachePath);
@@ -46,7 +48,7 @@ export async function scanMovies(mediaRoot, options = {}) {
         return scanMovieFolder(moviePath, categoryName, path.basename(moviePath), {
           cachedMovie,
           force: options.force,
-          refreshMetadata: Boolean(cachedMovie) && !options.force
+          refreshMetadata: false
         });
       });
       const movies = scannedMovies.filter(Boolean);
@@ -105,7 +107,7 @@ export async function scanMovieById(mediaRoot, movieId, options = {}) {
         });
 
         const previousMovie = options.previousMovie?.id === id ? options.previousMovie : cachedMovies.get(id);
-        if (movie && !options.force && sameActorList(movie.actors, previousMovie?.actors)) {
+        if (movie && previousMovie && !options.force && sameActorList(movie.actors, previousMovie.actors)) {
           return attachMovieMediaUrls({ ...movie, actors: previousMovie.actors || [] }, { skipActorTmdb: true });
         }
 
@@ -190,8 +192,13 @@ async function scanMovieFolder(moviePath, category, folderName, options = {}) {
     !options.refreshMetadata &&
     Object.hasOwn(options.cachedMovie, "source") &&
     Object.hasOwn(options.cachedMovie, "country") &&
+    options.cachedMovie.mediaMetadataVersion === MEDIA_METADATA_VERSION &&
     isMetadataCacheFresh(options.cachedMovie);
   const nfo = canUseCachedMetadata ? pickCachedMetadata(options.cachedMovie) : nfoFile ? await readNfo(path.join(moviePath, nfoFile)) : {};
+  const bitrate =
+    canUseCachedMetadata || !videoFile
+      ? nfo.bitrate || ""
+      : (await readMediaBitrate(path.join(moviePath, videoFile))) || nfo.bitrate || "";
   const fallback = parseFolderName(folderName);
   const imageSignature = await buildImageSignature(moviePath, files);
   const canReuseMediaSelection =
@@ -220,10 +227,11 @@ async function scanMovieFolder(moviePath, category, folderName, options = {}) {
     source: nfo.source || "",
     resolution: uppercaseEnglish(nfo.resolution || ""),
     codec: uppercaseEnglish(nfo.codec || ""),
-    bitrate: nfo.bitrate || "",
+    bitrate,
     hdrType: uppercaseEnglish(nfo.hdrType || ""),
     audioFormat: nfo.audioFormat || "",
     actors: nfo.actors || [],
+    mediaMetadataVersion: MEDIA_METADATA_VERSION,
     metadataCachedAt: canUseCachedMetadata ? options.cachedMovie.metadataCachedAt || options.cachedMovie.updatedAt : new Date().toISOString(),
     imageSignature,
     mediaVersion,
@@ -440,7 +448,7 @@ async function attachMediaUrls(database, options = {}) {
     const movies = [];
     for (const movie of category.movies || []) {
       const previousMovie = options.previousMovies?.get(movie.id);
-      if (movie && !options.forceTmdb && sameActorList(movie.actors, previousMovie?.actors)) {
+      if (movie && previousMovie && !options.forceTmdb && sameActorList(movie.actors, previousMovie.actors)) {
         movies.push(await attachMovieMediaUrls({ ...movie, actors: previousMovie.actors || [] }, { ...options, skipActorTmdb: true }));
         continue;
       }
