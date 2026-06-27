@@ -14,6 +14,9 @@ const ARTWORK_NAME_PARTS = ["fanart", "backdrop", "background", "artwork"];
 const IMAGE_HEADER_BYTES = 512 * 1024;
 const MOVIE_SCAN_CONCURRENCY = 10;
 const MEDIA_METADATA_VERSION = 1;
+const POSTER_WALL_WIDTH = 340;
+const POSTER_DETAIL_WIDTH = 520;
+const ARTWORK_DETAIL_WIDTH = 1920;
 
 export async function loadMovieDatabase({ mediaRoot, mockDbPath, cachePath, tmdbCachePath: configuredTmdbCachePath }) {
   await configureTmdbCache(configuredTmdbCachePath);
@@ -460,6 +463,24 @@ export function buildPosterIndex(database) {
   return index;
 }
 
+export function buildMovieWallPayload(database) {
+  return {
+    source: database.source,
+    updatedAt: database.updatedAt,
+    movies: (database.categories || []).flatMap((category) =>
+      (category.movies || []).map((movie) => ({
+        id: movie.id,
+        title: movie.title,
+        originalTitle: movie.originalTitle,
+        year: movie.year,
+        rating: movie.rating,
+        category: category.name,
+        posterUrl: mediaUrl(`/api/posters/${movie.id}`, movie.mediaVersion, POSTER_WALL_WIDTH)
+      }))
+    )
+  };
+}
+
 async function attachMediaUrls(database, options = {}) {
   const categories = [];
 
@@ -490,8 +511,8 @@ async function attachMovieMediaUrls(movie, options = {}) {
   return {
     ...movie,
     mediaVersion,
-    posterUrl: mediaUrl(`/api/posters/${movie.id}`, mediaVersion),
-    artworkUrl: mediaUrl(`/api/artwork/${movie.id}`, mediaVersion),
+    posterUrl: mediaUrl(`/api/posters/${movie.id}`, mediaVersion, POSTER_DETAIL_WIDTH),
+    artworkUrl: mediaUrl(`/api/artwork/${movie.id}`, mediaVersion, ARTWORK_DETAIL_WIDTH),
     actors: options.skipActorTmdb
       ? movie.actors || []
       : await attachActorImages(movie.actors || [], {
@@ -570,8 +591,8 @@ function ensureMediaUrls(database) {
       movies: (category.movies || []).map((movie) => ({
         ...movie,
         category: category.name,
-        posterUrl: mediaUrl(`/api/posters/${movie.id}`, movie.mediaVersion),
-        artworkUrl: mediaUrl(`/api/artwork/${movie.id}`, movie.mediaVersion)
+        posterUrl: mediaUrl(`/api/posters/${movie.id}`, movie.mediaVersion, POSTER_DETAIL_WIDTH),
+        artworkUrl: mediaUrl(`/api/artwork/${movie.id}`, movie.mediaVersion, ARTWORK_DETAIL_WIDTH)
       }))
     }))
   };
@@ -598,8 +619,12 @@ async function buildMediaVersion(filePaths) {
   return parts.length > 0 ? stableId(parts.join("|")) : "";
 }
 
-function mediaUrl(baseUrl, version) {
-  return version ? `${baseUrl}?v=${encodeURIComponent(version)}` : baseUrl;
+function mediaUrl(baseUrl, version, width) {
+  const params = new URLSearchParams();
+  if (version) params.set("v", version);
+  if (width) params.set("width", String(width));
+  const query = params.toString();
+  return query ? `${baseUrl}?${query}` : baseUrl;
 }
 
 async function safeReadDir(targetPath) {

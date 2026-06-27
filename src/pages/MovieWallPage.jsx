@@ -1,10 +1,20 @@
-import { useEffect, useMemo, useState } from "react";
+import { useWindowVirtualizer } from "@tanstack/react-virtual";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { loadMovieCategories, loadMovies, rescanMovieCategories, rescanMovies } from "../api/movies";
 import { LoadingGrid } from "../components/LoadingGrid";
 import { MovieCard } from "../components/MovieCard";
 import { RescanButton } from "../components/RescanButton";
 import { ThemeToggle } from "../components/ThemeToggle";
-import { compareMoviesByTitle, flattenMovies } from "../utils/movies";
+import { compareMoviesByTitle } from "../utils/movies";
+
+const CATEGORY_DISPLAY_NAMES = {
+  动漫电影: "谁不爱呢",
+  港台电影: "不要回来",
+  国产电影: "天地不仁",
+  欧美电影: "罗马和平",
+  其他电影: "回首阑珊",
+  日韩电影: "脱亚入欧"
+};
 
 export function MovieWallPage({
   onNavigate,
@@ -15,6 +25,7 @@ export function MovieWallPage({
   theme,
   onThemeChange
 }) {
+  const gridRef = useRef(null);
   const [database, setDatabase] = useState(null);
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
@@ -115,7 +126,7 @@ export function MovieWallPage({
 
   const movies = useMemo(() => {
     const value = query.trim().toLowerCase();
-    const source = flattenMovies(database).filter(
+    const source = (database?.movies || []).filter(
       (movie) => selectedCategories.length === 0 || selectedCategories.includes(movie.category)
     );
     const filtered = value
@@ -126,7 +137,7 @@ export function MovieWallPage({
         )
       : source;
 
-    return filtered.sort(compareMoviesByTitle);
+    return [...filtered].sort(compareMoviesByTitle);
   }, [database, query, selectedCategories]);
 
   function toggleFilterCategory(categoryName) {
@@ -135,6 +146,20 @@ export function MovieWallPage({
       : [...selectedCategories, categoryName];
     onSelectedCategoriesChange?.(nextCategories);
   }
+
+  const gridLayout = usePosterGridLayout(gridRef, !loading);
+  const rowCount = Math.ceil(movies.length / gridLayout.columns);
+  const rowVirtualizer = useWindowVirtualizer({
+    count: rowCount,
+    enabled: !loading && movies.length > 0,
+    estimateSize: () => gridLayout.rowHeight,
+    overscan: 3,
+    scrollMargin: gridLayout.scrollMargin
+  });
+
+  useEffect(() => {
+    rowVirtualizer.measure();
+  }, [gridLayout.rowHeight, rowVirtualizer]);
 
   return (
     <main className="app-shell">
@@ -153,7 +178,7 @@ export function MovieWallPage({
                     onClick={() => toggleFilterCategory(categoryName)}
                     type="button"
                   >
-                    {categoryName}
+                    {categoryDisplayName(categoryName)}
                   </button>
                 );
               })}
@@ -185,10 +210,31 @@ export function MovieWallPage({
       {loading ? (
         <LoadingGrid />
       ) : (
-        <section aria-label="电影海报墙" className="poster-grid">
-          {movies.map((movie) => (
-            <MovieCard key={movie.id} movie={movie} onOpen={openMovie} />
-          ))}
+        <section
+          aria-label="电影海报墙"
+          className="poster-grid poster-grid--virtual"
+          ref={gridRef}
+          style={{ height: `${rowVirtualizer.getTotalSize()}px` }}
+        >
+          {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+            const start = virtualRow.index * gridLayout.columns;
+            const rowMovies = movies.slice(start, start + gridLayout.columns);
+
+            return (
+              <div
+                className="poster-grid-row"
+                key={virtualRow.key}
+                style={{
+                  gridTemplateColumns: `repeat(${gridLayout.columns}, minmax(0, 1fr))`,
+                  transform: `translateY(${virtualRow.start - gridLayout.scrollMargin}px)`
+                }}
+              >
+                {rowMovies.map((movie) => (
+                  <MovieCard key={movie.id} movie={movie} onOpen={openMovie} />
+                ))}
+              </div>
+            );
+          })}
         </section>
       )}
 
@@ -204,6 +250,48 @@ export function MovieWallPage({
       )}
     </main>
   );
+}
+
+function usePosterGridLayout(gridRef, enabled) {
+  const [layout, setLayout] = useState({ columns: 1, rowHeight: 196, scrollMargin: 0 });
+
+  useLayoutEffect(() => {
+    const element = gridRef.current;
+    if (!enabled || !element) return undefined;
+
+    function update() {
+      const width = element.clientWidth;
+      const posterWidth = Math.min(170, Math.max(120, window.innerWidth * 0.085));
+      const gap = 16;
+      const columns = Math.max(1, Math.floor((width + gap) / (posterWidth + gap)));
+      const cardWidth = (width - gap * (columns - 1)) / columns;
+      const scrollMargin = element.getBoundingClientRect().top + window.scrollY;
+      const next = {
+        columns,
+        rowHeight: cardWidth * 1.5 + gap,
+        scrollMargin
+      };
+
+      setLayout((current) =>
+        current.columns === next.columns &&
+        Math.abs(current.rowHeight - next.rowHeight) < 0.5 &&
+        Math.abs(current.scrollMargin - next.scrollMargin) < 0.5
+          ? current
+          : next
+      );
+    }
+
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(element);
+    window.addEventListener("resize", update);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", update);
+    };
+  }, [enabled, gridRef]);
+
+  return layout;
 }
 
 function CategoryPickerDialog({ categories, loading, onClose, onConfirm, onToggle, selectedCategories }) {
@@ -230,7 +318,7 @@ function CategoryPickerDialog({ categories, loading, onClose, onConfirm, onToggl
                   onChange={() => onToggle(categoryName)}
                   type="checkbox"
                 />
-                <span>{categoryName}</span>
+                <span>{categoryDisplayName(categoryName)}</span>
               </label>
             ))
           )}
@@ -247,6 +335,12 @@ function CategoryPickerDialog({ categories, loading, onClose, onConfirm, onToggl
       </div>
     </div>
   );
+}
+
+function categoryDisplayName(categoryName) {
+  return Object.hasOwn(CATEGORY_DISPLAY_NAMES, categoryName)
+    ? CATEGORY_DISPLAY_NAMES[categoryName]
+    : categoryName;
 }
 
 function shouldLetBrowserHandleClick(event) {

@@ -20,6 +20,10 @@ app.get("/api/movies", (_req, res) => {
   res.json(movieLibrary.getDatabase());
 });
 
+app.get("/api/movie-wall", (_req, res) => {
+  res.json(movieLibrary.getMovieWall());
+});
+
 app.get("/api/movie-categories", async (_req, res) => {
   res.json({ categories: await movieLibrary.listCategories() });
 });
@@ -35,14 +39,14 @@ app.get("/api/movies/:id", (req, res) => {
 });
 
 app.post("/api/scan", async (req, res) => {
-  const database = await movieLibrary.runFullScan({ force: isForceRequest(req), reason: "manual" });
-  res.json(database);
+  await movieLibrary.runFullScan({ force: isForceRequest(req), reason: "manual" });
+  res.json(movieLibrary.getMovieWall());
 });
 
 app.post("/api/scan/categories", async (req, res) => {
   const categories = Array.isArray(req.body?.categories) ? req.body.categories : [];
-  const database = await movieLibrary.runCategoryScan(categories, { force: isForceRequest(req) });
-  res.json(database);
+  await movieLibrary.runCategoryScan(categories, { force: isForceRequest(req) });
+  res.json(movieLibrary.getMovieWall());
 });
 
 app.post("/api/movies/:id/scan", async (req, res) => {
@@ -62,12 +66,20 @@ app.post("/api/movies/:id/scan", async (req, res) => {
   res.json(movie);
 });
 
-app.get("/api/posters/:id", (req, res) => {
-  sendPoster(req, res, movieLibrary.getPosterIndex());
+app.get("/api/posters/:id", async (req, res, next) => {
+  try {
+    await sendPoster(req, res, movieLibrary.getPosterIndex(), config.imageCachePath);
+  } catch (error) {
+    next(error);
+  }
 });
 
-app.get("/api/artwork/:id", (req, res) => {
-  sendArtwork(req, res, movieLibrary.getPosterIndex());
+app.get("/api/artwork/:id", async (req, res, next) => {
+  try {
+    await sendArtwork(req, res, movieLibrary.getPosterIndex(), config.imageCachePath);
+  } catch (error) {
+    next(error);
+  }
 });
 
 app.use(express.static(path.join(config.rootDir, "dist")));

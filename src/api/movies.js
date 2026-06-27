@@ -1,7 +1,7 @@
 const API_BASE = import.meta.env.VITE_API_BASE || "";
 
 export async function loadMovies() {
-  const response = await fetch(`${API_BASE}/api/movies`);
+  const response = await fetch(`${API_BASE}/api/movie-wall`);
   if (!response.ok) throw new Error("电影库加载失败");
   return response.json();
 }

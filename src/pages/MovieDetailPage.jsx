@@ -60,14 +60,14 @@ export function MovieDetailPage({ movieId, onBack }) {
 
   return (
     <main className="detail-page" aria-label="电影详情页">
-      <img className="detail-backdrop" src={movie.artworkUrl} alt="" />
+      <img className="detail-backdrop" src={movie.artworkUrl} alt="" decoding="async" height="1080" width="1920" />
       <div className="detail-backdrop-shade" />
 
       <DetailNav onBack={onBack} onRescan={rescan} scanning={scanning} />
 
       <section className="detail-hero">
         <div className="detail-poster">
-          <img src={movie.posterUrl} alt={movie.title} />
+          <img src={movie.posterUrl} alt={movie.title} decoding="async" height="780" width="520" />
         </div>
 
         <div className="detail-copy">

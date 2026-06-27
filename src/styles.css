@@ -167,6 +167,7 @@ button {
 }
 
 .search {
+  flex: 1 1 auto;
   width: 100%;
   min-width: 180px;
   height: 40px;
@@ -642,6 +643,20 @@ button {
   padding-top: 4px;
 }
 
+.poster-grid--virtual {
+  position: relative;
+  display: block;
+}
+
+.poster-grid-row {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: grid;
+  gap: 16px;
+  width: 100%;
+}
+
 .movie-card {
   display: block;
   width: 100%;
@@ -779,7 +794,8 @@ button {
   }
 
   .toolbar {
-    flex-direction: column;
+    align-items: center;
+    flex-direction: row;
   }
 
   .search {
@@ -788,7 +804,7 @@ button {
 
   .icon-button,
   .theme-toggle {
-    align-self: flex-end;
+    align-self: center;
   }
 
   .poster-grid,

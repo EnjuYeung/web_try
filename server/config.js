@@ -17,6 +17,7 @@ export function readServerConfig() {
     mockDbPath: path.join(serverDir, "data", "mockMovies.json"),
     cachePath: path.join(dataRoot, "scan-cache.json"),
     tmdbCachePath: path.join(dataRoot, "tmdb-cache.json"),
+    imageCachePath: path.join(dataRoot, "image-cache"),
     startupScanEnabled: process.env.STARTUP_SCAN_ENABLED !== "false",
     dailyScan: {
       enabled: process.env.DAILY_SCAN_ENABLED !== "false",

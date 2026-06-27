@@ -1,5 +1,8 @@
 import { createReadStream, statSync } from "node:fs";
+import crypto from "node:crypto";
+import { access, mkdir, rename, rm, stat } from "node:fs/promises";
 import path from "node:path";
+import sharp from "sharp";
 
 const MOCK_PALETTES = {
   space: ["#07111f", "#4056f4", "#f4d35e"],
@@ -20,25 +23,126 @@ const MOCK_PALETTES = {
   desert: ["#1f2937", "#f97316", "#fde68a"]
 };
 const IMAGE_CACHE_CONTROL = "private, max-age=31536000, immutable";
+const POSTER_WIDTHS = new Set([340, 520]);
+const ARTWORK_WIDTHS = new Set([1920]);
+const IMAGE_VARIANT_VERSION = 1;
+const IMAGE_TRANSFORM_CONCURRENCY = 2;
+const variantJobs = new Map();
+const transformQueue = [];
+let activeTransforms = 0;
 
-export function sendPoster(req, res, posterIndex) {
+sharp.cache({ files: 20, items: 100, memory: 32 });
+sharp.concurrency(1);
+
+export async function sendPoster(req, res, posterIndex, imageCachePath = "") {
   const movie = posterIndex.get(req.params.id);
   if (!movie) {
     res.status(404).json({ error: "Poster not found" });
     return;
   }
 
-  sendFileOrFallback(res, movie.posterPath, () => sendMockPoster(res, movie));
+  const filePath = await resolveImageVariant(movie.posterPath, {
+    cacheRoot: imageCachePath,
+    id: movie.id,
+    kind: "poster",
+    width: requestedWidth(req, POSTER_WIDTHS)
+  });
+  sendFileOrFallback(res, filePath, () => sendMockPoster(res, movie));
 }
 
-export function sendArtwork(req, res, posterIndex) {
+export async function sendArtwork(req, res, posterIndex, imageCachePath = "") {
   const movie = posterIndex.get(req.params.id);
   if (!movie) {
     res.status(404).json({ error: "Artwork not found" });
     return;
   }
 
-  sendFileOrFallback(res, movie.artworkPath, () => sendMockArtwork(res, movie));
+  const filePath = await resolveImageVariant(movie.artworkPath, {
+    cacheRoot: imageCachePath,
+    id: movie.id,
+    kind: "artwork",
+    width: requestedWidth(req, ARTWORK_WIDTHS)
+  });
+  sendFileOrFallback(res, filePath, () => sendMockArtwork(res, movie));
+}
+
+async function resolveImageVariant(filePath, options) {
+  if (!filePath || !options.cacheRoot || !options.width) return filePath;
+
+  let sourceStats;
+  try {
+    sourceStats = await stat(filePath);
+  } catch {
+    return filePath;
+  }
+
+  const signature = crypto
+    .createHash("sha1")
+    .update(`${filePath}:${sourceStats.size}:${Math.trunc(sourceStats.mtimeMs)}:${options.width}:${IMAGE_VARIANT_VERSION}`)
+    .digest("hex")
+    .slice(0, 16);
+  const cacheId = crypto.createHash("sha1").update(options.id).digest("hex").slice(0, 16);
+  const directory = path.join(options.cacheRoot, options.kind);
+  const outputPath = path.join(directory, `${cacheId}-${options.width}-${signature}.webp`);
+
+  try {
+    await access(outputPath);
+    return outputPath;
+  } catch {
+    // Generate the variant below.
+  }
+
+  let job = variantJobs.get(outputPath);
+  if (!job) {
+    job = withTransformSlot(() => generateImageVariant(filePath, outputPath, options.width))
+      .finally(() => {
+        variantJobs.delete(outputPath);
+      });
+    variantJobs.set(outputPath, job);
+  }
+
+  try {
+    await job;
+    return outputPath;
+  } catch {
+    return filePath;
+  }
+}
+
+async function withTransformSlot(task) {
+  if (activeTransforms >= IMAGE_TRANSFORM_CONCURRENCY) {
+    await new Promise((resolve) => transformQueue.push(resolve));
+  }
+
+  activeTransforms += 1;
+  try {
+    return await task();
+  } finally {
+    activeTransforms -= 1;
+    transformQueue.shift()?.();
+  }
+}
+
+async function generateImageVariant(filePath, outputPath, width) {
+  await mkdir(path.dirname(outputPath), { recursive: true });
+  const temporaryPath = `${outputPath}.${process.pid}.${crypto.randomUUID()}.tmp`;
+
+  try {
+    await sharp(filePath)
+      .rotate()
+      .resize({ width, withoutEnlargement: true })
+      .webp({ effort: 4, quality: 82 })
+      .toFile(temporaryPath);
+    await rename(temporaryPath, outputPath);
+  } catch (error) {
+    await rm(temporaryPath, { force: true }).catch(() => {});
+    throw error;
+  }
+}
+
+function requestedWidth(req, allowedWidths) {
+  const width = Number.parseInt(req.query.width || "", 10);
+  return allowedWidths.has(width) ? width : 0;
 }
 
 function sendFileOrFallback(res, filePath, fallback) {

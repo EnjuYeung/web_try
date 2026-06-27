@@ -1,4 +1,5 @@
 import {
+  buildMovieWallPayload,
   buildPosterIndex,
   listMovieCategories,
   loadMovieDatabase,
@@ -75,6 +76,7 @@ export async function createMovieLibrary({ mediaRoot, mockDbPath, cachePath, tmd
   return {
     getDatabase: () => database,
     getMovie: (movieId) => posterIndex.get(movieId),
+    getMovieWall: () => buildMovieWallPayload(database),
     getPosterIndex: () => posterIndex,
     listCategories: () => listMovieCategories(mediaRoot),
     runFullScan,
