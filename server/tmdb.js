@@ -1,5 +1,5 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import path from "node:path";
+import { readFile } from "node:fs/promises";
+import { writeJsonAtomic } from "./jsonFile.js";
 
 const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w185";
 const TMDB_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -27,7 +27,7 @@ export async function flushTmdbCache() {
 
   tmdbCacheDirty = false;
   try {
-    await writeJson(tmdbCachePath, tmdbCache);
+    await writeJsonAtomic(tmdbCachePath, tmdbCache);
   } catch (error) {
     tmdbCacheDirty = true;
     throw error;
@@ -150,8 +150,3 @@ async function throttleTmdbRequest() {
 }
 
 throttleTmdbRequest.lastRequestAt = 0;
-
-async function writeJson(filePath, data) {
-  await mkdir(path.dirname(filePath), { recursive: true });
-  await writeFile(filePath, `${JSON.stringify(data, null, 2)}\n`, "utf8");
-}

@@ -67,7 +67,19 @@ function sendFileOrFallback(res, filePath, fallback) {
   }
 
   res.type(path.extname(filePath));
-  createReadStream(filePath).on("error", fallback).pipe(res);
+  const stream = createReadStream(filePath);
+  stream.once("error", (error) => {
+    if (res.headersSent || res.destroyed || res.writableEnded) {
+      if (!res.destroyed) res.destroy(error);
+      return;
+    }
+
+    stream.unpipe(res);
+    res.removeHeader("ETag");
+    res.removeHeader("Last-Modified");
+    fallback();
+  });
+  stream.pipe(res);
 }
 
 function sendMockPoster(res, movie) {

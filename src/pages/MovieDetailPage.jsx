@@ -56,6 +56,7 @@ export function MovieDetailPage({ movieId, onBack }) {
     metadataText("audioFormat", movie.audioFormat)
   ].filter(Boolean);
   const isBluRaySource = matchesBluRaySource(movie.source);
+  const actorKeys = buildActorKeys(movie.actors || []);
 
   return (
     <main className="detail-page" aria-label="电影详情页">
@@ -90,7 +91,7 @@ export function MovieDetailPage({ movieId, onBack }) {
       {movie.actors?.length > 0 && (
         <section className="detail-cast" aria-label="演员">
           {movie.actors.map((actor, index) => (
-            <article className="cast-card" key={`${actor.name}-${actor.role}-${index}`}>
+            <article className="cast-card" key={actorKeys[index]}>
               <img src={actor.imageUrl} alt={actor.name} loading="lazy" />
               {actor.name && <div className="cast-name">{actor.name}</div>}
               {actor.role && <div className="cast-role">{actor.role}</div>}
@@ -104,6 +105,18 @@ export function MovieDetailPage({ movieId, onBack }) {
 
 function metadataText(key, value) {
   return value ? { key, content: value } : null;
+}
+
+function buildActorKeys(actors) {
+  const occurrences = new Map();
+
+  return actors.map((actor) => {
+    const tmdbId = String(actor.tmdbid || "").trim();
+    const identity = tmdbId ? `tmdb-${tmdbId}-${actor.role || ""}` : `cast-${actor.name}-${actor.role || ""}`;
+    const occurrence = occurrences.get(identity) || 0;
+    occurrences.set(identity, occurrence + 1);
+    return occurrence === 0 ? identity : `${identity}-${occurrence}`;
+  });
 }
 
 function metadataRating(value) {

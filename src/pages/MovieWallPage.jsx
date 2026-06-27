@@ -102,7 +102,7 @@ export function MovieWallPage({ onNavigate, searchQuery = "", onSearchChange, th
         )
       : source;
 
-    return [...filtered].sort(compareMoviesByTitle);
+    return filtered.sort(compareMoviesByTitle);
   }, [database, query]);
 
   return (

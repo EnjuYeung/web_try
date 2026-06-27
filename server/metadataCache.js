@@ -1,5 +1,5 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import path from "node:path";
+import { readFile } from "node:fs/promises";
+import { writeJsonAtomic } from "./jsonFile.js";
 
 const DEFAULT_METADATA_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -56,8 +56,7 @@ export async function writeDatabaseCache(cachePath, database) {
   if (!cachePath) return;
 
   try {
-    await mkdir(path.dirname(cachePath), { recursive: true });
-    await writeFile(cachePath, `${JSON.stringify(database, null, 2)}\n`, "utf8");
+    await writeJsonAtomic(cachePath, database);
   } catch {
     // Cache writes are best-effort because Docker deployments may mount read-only app files.
   }

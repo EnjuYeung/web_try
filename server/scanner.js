@@ -127,37 +127,57 @@ export async function scanMovieById(mediaRoot, movieId, options = {}) {
 }
 
 export function replaceMovieInDatabase(database, movie) {
-  let replaced = false;
-  const categories = (database.categories || []).map((category) => {
-    const movies = (category.movies || []).map((existing) => {
-      if (existing.id !== movie.id) return existing;
-      replaced = true;
-      return movie;
-    });
+  const categories = database.categories || [];
+  const targetCategoryIndex = categories.findIndex((category) => category.name === movie.category);
+  const targetCategory = categories[targetCategoryIndex];
+  const targetMovieIndex = (targetCategory?.movies || []).findIndex((existing) => existing.id === movie.id);
 
-    return { ...category, movies };
-  });
-
-  if (!replaced) {
-    const categoryIndex = categories.findIndex((category) => category.name === movie.category);
-    if (categoryIndex === -1) {
-      categories.push({ id: slugify(movie.category), name: movie.category, movies: [movie] });
-    } else {
-      categories[categoryIndex] = {
-        ...categories[categoryIndex],
-        movies: [...categories[categoryIndex].movies, movie].sort(
-          (a, b) => Number(b.year || 0) - Number(a.year || 0) || a.title.localeCompare(b.title, "zh-CN")
-        )
-      };
-    }
+  if (targetMovieIndex !== -1) {
+    const nextCategories = categories.slice();
+    const movies = targetCategory.movies.slice();
+    movies[targetMovieIndex] = movie;
+    nextCategories[targetCategoryIndex] = { ...targetCategory, movies };
+    return updatedDatabase(database, nextCategories);
   }
 
+  const existingCategoryIndex = categories.findIndex((category) =>
+    (category.movies || []).some((existing) => existing.id === movie.id)
+  );
+  const nextCategories = categories.slice();
+
+  if (existingCategoryIndex !== -1) {
+    const existingCategory = categories[existingCategoryIndex];
+    nextCategories[existingCategoryIndex] = {
+      ...existingCategory,
+      movies: existingCategory.movies.filter((existing) => existing.id !== movie.id)
+    };
+  }
+
+  if (targetCategoryIndex === -1) {
+    nextCategories.push({ id: slugify(movie.category), name: movie.category, movies: [movie] });
+  } else {
+    nextCategories[targetCategoryIndex] = {
+      ...targetCategory,
+      movies: sortMovies([...(targetCategory.movies || []), movie])
+    };
+  }
+
+  return updatedDatabase(database, nextCategories);
+}
+
+function updatedDatabase(database, categories) {
   return {
     ...database,
     source: "scan",
     updatedAt: new Date().toISOString(),
     categories
   };
+}
+
+function sortMovies(movies) {
+  return movies.sort(
+    (a, b) => Number(b.year || 0) - Number(a.year || 0) || a.title.localeCompare(b.title, "zh-CN")
+  );
 }
 
 async function collectLeafMovieFolders(folderPath) {
@@ -204,8 +224,7 @@ async function scanMovieFolder(moviePath, category, folderName, options = {}) {
   const canReuseMediaSelection =
     options.cachedMovie &&
     !options.force &&
-    options.cachedMovie.imageSignature === imageSignature &&
-    Object.hasOwn(options.cachedMovie, "imageSignature");
+    options.cachedMovie.imageSignature === imageSignature;
   const posterFile = canReuseMediaSelection ? "" : await pickPoster(moviePath, files);
   const artworkFile = canReuseMediaSelection ? "" : await pickArtwork(moviePath, files);
   const id = stableId(`${category}:${moviePath}`);
@@ -550,6 +569,7 @@ function ensureMediaUrls(database) {
       ...category,
       movies: (category.movies || []).map((movie) => ({
         ...movie,
+        category: category.name,
         posterUrl: mediaUrl(`/api/posters/${movie.id}`, movie.mediaVersion),
         artworkUrl: mediaUrl(`/api/artwork/${movie.id}`, movie.mediaVersion)
       }))
