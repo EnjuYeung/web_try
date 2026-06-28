@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { MovieDetailPage } from "./pages/MovieDetailPage";
 import { MovieWallPage } from "./pages/MovieWallPage";
+import { PosterLandingPage } from "./pages/PosterLandingPage";
 import { getSystemTheme } from "./utils/theme";
 
 export function App() {
@@ -46,8 +47,9 @@ export function App() {
 
   function updateSearchQuery(value) {
     const searchQuery = value.trim();
-    const nextPath = searchQuery ? `/?q=${encodeURIComponent(searchQuery)}` : "/";
-    const hasSearchQuery = window.location.pathname === "/" && new URLSearchParams(window.location.search).has("q");
+    const nextPath = searchQuery ? `/library?q=${encodeURIComponent(searchQuery)}` : "/library";
+    const hasSearchQuery =
+      window.location.pathname === "/library" && new URLSearchParams(window.location.search).has("q");
 
     navigate(nextPath, { replace: hasSearchQuery });
   }
@@ -58,11 +60,15 @@ export function App() {
       return;
     }
 
-    navigate("/", { replace: true });
+    navigate("/library", { replace: true });
   }
 
   if (route.name === "movie-detail") {
     return <MovieDetailPage movieId={route.movieId} onBack={goBackOrHome} />;
+  }
+
+  if (route.name === "poster-landing") {
+    return <PosterLandingPage onEnter={() => navigate("/library")} />;
   }
 
   return (
@@ -81,6 +87,7 @@ export function App() {
 function getCurrentRoute() {
   const movieMatch = window.location.pathname.match(/^\/movies\/([^/]+)$/);
   if (movieMatch) return { name: "movie-detail", movieId: decodeURIComponent(movieMatch[1]) };
+  if (window.location.pathname === "/") return { name: "poster-landing" };
   return {
     name: "movie-wall",
     searchQuery: new URLSearchParams(window.location.search).get("q") || ""

@@ -78,6 +78,10 @@ body {
     var(--page-bg);
 }
 
+body.poster-landing-active {
+  overflow: hidden;
+}
+
 button,
 input {
   font: inherit;
@@ -85,6 +89,183 @@ input {
 
 button {
   color: inherit;
+}
+
+.poster-landing {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  overflow: hidden;
+  color: #f3f7f5;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(13, 45, 34, 0.48), transparent 42%),
+    #010604;
+  cursor: pointer;
+  outline: none;
+  isolation: isolate;
+}
+
+.poster-landing:focus-visible::after {
+  position: absolute;
+  inset: 10px;
+  z-index: 5;
+  border: 2px solid rgba(138, 214, 181, 0.72);
+  border-radius: 12px;
+  content: "";
+  pointer-events: none;
+}
+
+.poster-stream-grid {
+  --stream-columns: 9;
+  position: absolute;
+  top: -32vh;
+  left: -8vw;
+  display: grid;
+  grid-template-columns: repeat(var(--stream-columns), minmax(0, 1fr));
+  width: 116vw;
+  height: 164vh;
+  background:
+    repeating-linear-gradient(90deg, transparent 0 9.5%, rgba(52, 156, 111, 0.035) 9.7% 9.8%, transparent 10%);
+  transform: rotate(-0.7deg) scale(1.025);
+}
+
+.poster-stream-grid::after {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  background:
+    linear-gradient(90deg, rgba(0, 8, 5, 0.28), transparent 14%, transparent 86%, rgba(0, 8, 5, 0.28)),
+    repeating-linear-gradient(180deg, transparent 0 5px, rgba(37, 202, 132, 0.018) 6px);
+  content: "";
+  pointer-events: none;
+}
+
+.poster-stream-column {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  margin-inline: -7%;
+}
+
+.poster-stream-column:nth-child(3n + 1) {
+  z-index: 3;
+}
+
+.poster-stream-column:nth-child(3n + 2) {
+  z-index: 2;
+  transform: translateY(5vh);
+}
+
+.poster-stream-column:nth-child(3n) {
+  z-index: 1;
+  transform: translateY(-4vh);
+}
+
+.poster-stream-reel {
+  animation: poster-stream-up var(--stream-duration) linear var(--stream-delay) infinite;
+  will-change: transform;
+}
+
+.poster-stream-column--reverse .poster-stream-reel {
+  animation-name: poster-stream-down;
+}
+
+.poster-stream-group {
+  display: flex;
+  flex-direction: column;
+  padding: 7px 0;
+}
+
+.poster-stream-card {
+  position: relative;
+  width: 116%;
+  margin-top: clamp(-84px, -5.1vw, -48px);
+  margin-left: -8%;
+  aspect-ratio: 2 / 3;
+  overflow: hidden;
+  border: 1px solid rgba(112, 167, 143, 0.22);
+  border-radius: clamp(8px, 0.8vw, 14px);
+  background: #06100c;
+  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.72);
+}
+
+.poster-stream-card:first-child {
+  margin-top: 0;
+}
+
+.poster-stream-card:nth-child(3n + 1) {
+  z-index: 3;
+  transform: translateX(-4%);
+}
+
+.poster-stream-card:nth-child(3n + 2) {
+  z-index: 2;
+  transform: translateX(3%);
+}
+
+.poster-stream-card:nth-child(3n) {
+  z-index: 1;
+}
+
+.poster-stream-card::after {
+  position: absolute;
+  inset: 0;
+  background: rgba(3, 42, 28, 0.14);
+  box-shadow: inset 0 0 35px rgba(0, 0, 0, 0.28);
+  content: "";
+}
+
+.poster-stream-card img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.poster-landing-shade {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  background:
+    linear-gradient(90deg, rgba(0, 5, 3, 0.28), rgba(0, 5, 3, 0.08) 18%, rgba(0, 5, 3, 0.08) 82%, rgba(0, 5, 3, 0.28)),
+    linear-gradient(180deg, rgba(0, 5, 3, 0.3), rgba(0, 8, 5, 0.12) 18%, rgba(0, 8, 5, 0.12) 82%, rgba(0, 5, 3, 0.38));
+  pointer-events: none;
+}
+
+.poster-landing-brand {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 40;
+  color: #f4f7f5;
+  font-size: clamp(50px, 7vw, 102px);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.045em;
+  text-shadow:
+    0 2px 12px rgba(0, 0, 0, 0.98),
+    0 12px 48px rgba(0, 0, 0, 0.9);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+@keyframes poster-stream-up {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(-50%);
+  }
+}
+
+@keyframes poster-stream-down {
+  from {
+    transform: translateY(-50%);
+  }
+  to {
+    transform: translateY(0);
+  }
 }
 
 .app-shell {
@@ -787,6 +968,20 @@ button {
     padding-top: 16px;
   }
 
+  .poster-stream-grid {
+    --stream-columns: 5;
+    left: -22vw;
+    width: 144vw;
+  }
+
+  .poster-stream-column:nth-child(n + 6) {
+    display: none;
+  }
+
+  .poster-stream-card {
+    margin-top: clamp(-64px, -11vw, -42px);
+  }
+
   .brand {
     font-size: 22px;
   }
@@ -871,5 +1066,11 @@ button {
     grid-auto-columns: 118px;
     margin-right: 0;
     margin-left: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .poster-stream-reel {
+    animation-play-state: paused;
   }
 }
