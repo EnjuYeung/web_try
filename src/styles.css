@@ -97,13 +97,16 @@ button {
   position: sticky;
   top: 0;
   z-index: 20;
+  padding: 14px 0 22px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--page-bg) 96%, transparent) 0%, color-mix(in srgb, var(--page-bg) 78%, transparent) 76%, transparent 100%);
+  backdrop-filter: blur(12px);
+}
+
+.topbar-main {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 24px;
-  padding: 14px 0 22px;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--page-bg) 96%, transparent) 0%, color-mix(in srgb, var(--page-bg) 78%, transparent) 76%, transparent 100%);
-  backdrop-filter: blur(12px);
 }
 
 .brand {
@@ -113,14 +116,11 @@ button {
   letter-spacing: 0;
 }
 
-.brand-panel {
-  min-width: 0;
-}
-
 .brand-row {
   display: flex;
   align-items: center;
   gap: 14px;
+  min-width: 0;
 }
 
 .category-filters {
@@ -756,6 +756,9 @@ button {
 
   .topbar {
     position: static;
+  }
+
+  .topbar-main {
     align-items: stretch;
     flex-direction: column;
     gap: 14px;

@@ -164,7 +164,7 @@ export function MovieWallPage({
   return (
     <main className="app-shell">
       <header className="topbar">
-        <div className="brand-panel">
+        <div className="topbar-main">
           <div className="brand-row">
             <div className="brand">Juen&apos;s</div>
             <nav aria-label="电影分类筛选" className="category-filters">
@@ -184,25 +184,25 @@ export function MovieWallPage({
               })}
             </nav>
           </div>
-          <div className="source-line">{loading ? 0 : movies.length} 部影片</div>
+          <div className="toolbar">
+            <input
+              aria-label="搜索电影"
+              className="search"
+              onChange={(event) => updateQuery(event.target.value)}
+              placeholder="搜索片名、年份、评分"
+              value={query}
+            />
+            <RescanButton
+              confirmMessage="确认开始普通刷新？将重新扫描全部电影并读取旧电影的最新 NFO。"
+              disabled={scanning}
+              onClick={() => rescan()}
+              onContextMenu={openCategoryPicker}
+              onForceClick={() => rescan({ force: true })}
+            />
+            <ThemeToggle value={theme} onChange={onThemeChange} />
+          </div>
         </div>
-        <div className="toolbar">
-          <input
-            aria-label="搜索电影"
-            className="search"
-            onChange={(event) => updateQuery(event.target.value)}
-            placeholder="搜索片名、年份、评分"
-            value={query}
-          />
-          <RescanButton
-            confirmMessage="确认开始普通刷新？将重新扫描全部电影并读取旧电影的最新 NFO。"
-            disabled={scanning}
-            onClick={() => rescan()}
-            onContextMenu={openCategoryPicker}
-            onForceClick={() => rescan({ force: true })}
-          />
-          <ThemeToggle value={theme} onChange={onThemeChange} />
-        </div>
+        <div className="source-line">{loading ? 0 : movies.length} 部影片</div>
       </header>
 
       {error && <div className="notice">{error}</div>}
