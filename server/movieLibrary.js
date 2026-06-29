@@ -57,19 +57,19 @@ export async function createMovieLibrary({ mediaRoot, mockDbPath, cachePath, tmd
 
   async function runMovieScan(movieId, { force = false } = {}) {
     return enqueueScan(async () => {
-      const movie = await scanMovieById(mediaRoot, movieId, {
+      const scanResult = await scanMovieById(mediaRoot, movieId, {
         cachePath,
         force,
         previousMovie: posterIndex.get(movieId),
         tmdbCachePath
       });
-      if (!movie) return null;
+      if (!scanResult) return null;
 
-      database = replaceMovieInDatabase(database, movie);
+      database = replaceMovieInDatabase(database, scanResult.categoryName, scanResult.movie);
       await writeDatabaseCache(cachePath, database);
       posterIndex = buildPosterIndex(database);
       console.log(`Movie scan complete: ${movieId}, force=${force}`);
-      return movie;
+      return posterIndex.get(scanResult.movie.id);
     });
   }
 

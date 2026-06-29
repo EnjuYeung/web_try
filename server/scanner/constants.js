@@ -1,0 +1,9 @@
+export const DEFAULT_CATEGORIES = ["其他电影", "欧美电影", "日韩电影", "动漫电影", "国产电影", "港台电影"];
+export const VIDEO_EXTENSIONS = new Set([".mkv", ".mp4", ".avi", ".mov", ".wmv", ".flv", ".m4v", ".ts", ".webm"]);
+export const IMAGE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp"]);
+export const MOVIE_SCAN_CONCURRENCY = 10;
+export const MEDIA_ENRICHMENT_CONCURRENCY = 6;
+export const MEDIA_METADATA_VERSION = 1;
+export const POSTER_WALL_WIDTH = 340;
+export const POSTER_DETAIL_WIDTH = 520;
+export const ARTWORK_DETAIL_WIDTH = 1920;

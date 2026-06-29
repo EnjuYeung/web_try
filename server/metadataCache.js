@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { writeJsonAtomic } from "./jsonFile.js";
+import { normalizeMovieDatabase } from "./scanner/database.js";
 
 const DEFAULT_METADATA_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -21,7 +22,7 @@ export async function loadDatabaseCache(cachePath) {
   if (!cachePath) return null;
 
   try {
-    return JSON.parse(await readFile(cachePath, "utf8"));
+    return normalizeMovieDatabase(JSON.parse(await readFile(cachePath, "utf8")));
   } catch {
     return null;
   }
@@ -56,7 +57,7 @@ export async function writeDatabaseCache(cachePath, database) {
   if (!cachePath) return;
 
   try {
-    await writeJsonAtomic(cachePath, database);
+    await writeJsonAtomic(cachePath, normalizeMovieDatabase(database));
   } catch {
     // Cache writes are best-effort because Docker deployments may mount read-only app files.
   }

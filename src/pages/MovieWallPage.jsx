@@ -1,20 +1,13 @@
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { loadMovieCategories, loadMovies, rescanMovieCategories, rescanMovies } from "../api/movies";
+import { CategoryPickerDialog } from "../components/CategoryPickerDialog";
 import { LoadingGrid } from "../components/LoadingGrid";
 import { MovieCard } from "../components/MovieCard";
 import { RescanButton } from "../components/RescanButton";
 import { ThemeToggle } from "../components/ThemeToggle";
+import { categoryDisplayName } from "../utils/categories";
 import { compareMoviesByTitle } from "../utils/movies";
-
-const CATEGORY_DISPLAY_NAMES = {
-  动漫电影: "谁不爱呢",
-  港台电影: "不要回来",
-  国产电影: "天地不仁",
-  欧美电影: "罗马和平",
-  其他电影: "回首阑珊",
-  日韩电影: "脱亚入欧"
-};
 
 export function MovieWallPage({
   onNavigate,
@@ -32,10 +25,7 @@ export function MovieWallPage({
   const [error, setError] = useState("");
   const [query, setQuery] = useState(searchQuery);
   const [categoryPickerOpen, setCategoryPickerOpen] = useState(false);
-  const [categoryLoading, setCategoryLoading] = useState(false);
   const [categoryOptions, setCategoryOptions] = useState([]);
-  const [scanCategoryOptions, setScanCategoryOptions] = useState([]);
-  const [selectedScanCategories, setSelectedScanCategories] = useState([]);
 
   useEffect(() => {
     setError("");
@@ -74,30 +64,27 @@ export function MovieWallPage({
     }
   }
 
-  async function openCategoryPicker() {
-    setCategoryPickerOpen(true);
-    setCategoryLoading(true);
+  function openCategoryPicker() {
     setError("");
-    try {
-      const result = await loadMovieCategories();
-      setScanCategoryOptions(result.categories || []);
-      setSelectedScanCategories([]);
-    } catch (err) {
-      setError(err.message);
-      setCategoryPickerOpen(false);
-    } finally {
-      setCategoryLoading(false);
-    }
+    setCategoryPickerOpen(true);
   }
 
-  async function rescanSelectedCategories() {
-    if (selectedScanCategories.length === 0) return;
+  const closeCategoryPicker = useCallback(() => {
+    setCategoryPickerOpen(false);
+  }, []);
+
+  const handleCategoryPickerError = useCallback((err) => {
+    setError(err.message);
+  }, []);
+
+  async function rescanSelectedCategories(categories) {
+    if (categories.length === 0) return;
 
     setScanning(true);
     setError("");
     setCategoryPickerOpen(false);
     try {
-      setDatabase(await rescanMovieCategories(selectedScanCategories));
+      setDatabase(await rescanMovieCategories(categories));
     } catch (err) {
       setError(err.message);
     } finally {
@@ -116,14 +103,6 @@ export function MovieWallPage({
     onSearchChange?.(value);
   }
 
-  function toggleCategory(categoryName) {
-    setSelectedScanCategories((current) =>
-      current.includes(categoryName)
-        ? current.filter((name) => name !== categoryName)
-        : [...current, categoryName]
-    );
-  }
-
   const movies = useMemo(() => {
     const value = query.trim().toLowerCase();
     const source = (database?.movies || []).filter(
@@ -137,7 +116,7 @@ export function MovieWallPage({
         )
       : source;
 
-    return [...filtered].sort(compareMoviesByTitle);
+    return filtered.sort(compareMoviesByTitle);
   }, [database, query, selectedCategories]);
 
   function toggleFilterCategory(categoryName) {
@@ -240,12 +219,9 @@ export function MovieWallPage({
 
       {categoryPickerOpen && (
         <CategoryPickerDialog
-          categories={scanCategoryOptions}
-          loading={categoryLoading}
-          onClose={() => setCategoryPickerOpen(false)}
+          onClose={closeCategoryPicker}
           onConfirm={rescanSelectedCategories}
-          onToggle={toggleCategory}
-          selectedCategories={selectedScanCategories}
+          onError={handleCategoryPickerError}
         />
       )}
     </main>
@@ -292,55 +268,6 @@ function usePosterGridLayout(gridRef, enabled) {
   }, [enabled, gridRef]);
 
   return layout;
-}
-
-function CategoryPickerDialog({ categories, loading, onClose, onConfirm, onToggle, selectedCategories }) {
-  return (
-    <div className="modal-backdrop" role="presentation">
-      <div aria-label="选择分类文件夹刷新" aria-modal="true" className="category-dialog" role="dialog">
-        <div className="category-dialog-header">
-          <h2>选择分类文件夹</h2>
-          <button aria-label="关闭" className="dialog-close" onClick={onClose} type="button">
-            ×
-          </button>
-        </div>
-
-        <div className="category-dialog-body">
-          {loading ? (
-            <div className="category-dialog-empty">读取中</div>
-          ) : categories.length === 0 ? (
-            <div className="category-dialog-empty">未找到分类文件夹</div>
-          ) : (
-            categories.map((categoryName) => (
-              <label className="category-option" key={categoryName}>
-                <input
-                  checked={selectedCategories.includes(categoryName)}
-                  onChange={() => onToggle(categoryName)}
-                  type="checkbox"
-                />
-                <span>{categoryDisplayName(categoryName)}</span>
-              </label>
-            ))
-          )}
-        </div>
-
-        <div className="category-dialog-actions">
-          <button className="dialog-button" onClick={onClose} type="button">
-            取消
-          </button>
-          <button className="dialog-button dialog-button--primary" disabled={selectedCategories.length === 0 || loading} onClick={onConfirm} type="button">
-            确认刷新
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function categoryDisplayName(categoryName) {
-  return Object.hasOwn(CATEGORY_DISPLAY_NAMES, categoryName)
-    ? CATEGORY_DISPLAY_NAMES[categoryName]
-    : categoryName;
 }
 
 function shouldLetBrowserHandleClick(event) {

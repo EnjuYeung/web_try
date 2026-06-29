@@ -1,5 +1,6 @@
 {
   "source": "mock",
+  "schemaVersion": 2,
   "updatedAt": "2026-06-25T00:00:00.000Z",
   "categories": [
     {
@@ -13,7 +14,6 @@
           "rating": "8.3",
           "runtime": "136 分钟",
           "overview": "一支深空小队在未知星域寻找失联殖民舰。",
-          "category": "欧美电影",
           "posterSeed": "space"
         },
         {
@@ -23,7 +23,6 @@
           "rating": "7.6",
           "runtime": "118 分钟",
           "overview": "一名记者追查十年前的未结案件。",
-          "category": "欧美电影",
           "posterSeed": "city"
         },
         {
@@ -33,7 +32,6 @@
           "rating": "7.9",
           "runtime": "127 分钟",
           "overview": "雪原边境上的秘密交易改变了三个人的命运。",
-          "category": "欧美电影",
           "posterSeed": "snow"
         },
         {
@@ -43,7 +41,6 @@
           "rating": "7.4",
           "runtime": "109 分钟",
           "overview": "地下车手被卷入一场跨城追逐。",
-          "category": "欧美电影",
           "posterSeed": "race"
         }
       ]
@@ -59,7 +56,6 @@
           "rating": "8.1",
           "runtime": "104 分钟",
           "overview": "两位旧友在一间即将关闭的书店重逢。",
-          "category": "日韩电影",
           "posterSeed": "rain"
         },
         {
@@ -69,7 +65,6 @@
           "rating": "8.5",
           "runtime": "121 分钟",
           "overview": "一封迟到多年的信让一家人重新面对过去。",
-          "category": "日韩电影",
           "posterSeed": "sea"
         },
         {
@@ -86,7 +81,6 @@
           "bitrate": "18.6 Mbps",
           "hdrType": "HDR10+",
           "audioFormat": "次世代音轨",
-          "category": "日韩电影",
           "posterSeed": "maze",
           "actors": [
             {
@@ -124,7 +118,6 @@
           "rating": "8.7",
           "runtime": "99 分钟",
           "overview": "少年乘上通往天空城市的列车。",
-          "category": "动漫电影",
           "posterSeed": "cloud"
         },
         {
@@ -134,7 +127,6 @@
           "rating": "8.0",
           "runtime": "101 分钟",
           "overview": "废土中的机器人守护最后一座花园。",
-          "category": "动漫电影",
           "posterSeed": "garden"
         },
         {
@@ -144,7 +136,6 @@
           "rating": "8.2",
           "runtime": "96 分钟",
           "overview": "三个孩子在暑假追寻一张神秘星图。",
-          "category": "动漫电影",
           "posterSeed": "summer"
         }
       ]
@@ -160,7 +151,6 @@
           "rating": "7.8",
           "runtime": "132 分钟",
           "overview": "一座江边小城中几代人的选择与告别。",
-          "category": "国产电影",
           "posterSeed": "river"
         },
         {
@@ -170,7 +160,6 @@
           "rating": "7.3",
           "runtime": "115 分钟",
           "overview": "工厂改造前夜，几位老员工守住最后一班岗。",
-          "category": "国产电影",
           "posterSeed": "factory"
         }
       ]
@@ -186,7 +175,6 @@
           "rating": "8.4",
           "runtime": "103 分钟",
           "overview": "胶片、雨夜与一宗失踪案。",
-          "category": "港台电影",
           "posterSeed": "neon"
         },
         {
@@ -196,7 +184,6 @@
           "rating": "7.7",
           "runtime": "108 分钟",
           "overview": "一次环岛旅行重新连接了疏远的父女。",
-          "category": "港台电影",
           "posterSeed": "island"
         }
       ]
@@ -212,7 +199,6 @@
           "rating": "7.1",
           "runtime": "91 分钟",
           "overview": "实验室中的一次封闭测试产生了不可预期的结果。",
-          "category": "其他电影",
           "posterSeed": "box"
         },
         {
@@ -222,7 +208,6 @@
           "rating": "7.5",
           "runtime": "117 分钟",
           "overview": "旅人在荒原上寻找一座只存在于传说中的城。",
-          "category": "其他电影",
           "posterSeed": "desert"
         }
       ]
