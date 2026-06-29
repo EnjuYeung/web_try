@@ -54,6 +54,11 @@ export function App() {
     navigate(nextPath, { replace: hasSearchQuery });
   }
 
+  function resetMovieWall() {
+    setSelectedCategories([]);
+    navigate("/library", { replace: true });
+  }
+
   function goBackOrHome() {
     if (Number.isInteger(window.history.state?.appIndex) && window.history.state.appIndex > 0) {
       window.history.back();
@@ -74,6 +79,7 @@ export function App() {
   return (
     <MovieWallPage
       onNavigate={navigate}
+      onReset={resetMovieWall}
       onSearchChange={updateSearchQuery}
       onSelectedCategoriesChange={setSelectedCategories}
       onThemeChange={setTheme}

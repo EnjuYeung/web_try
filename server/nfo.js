@@ -141,10 +141,14 @@ function normalizeBitrate(value) {
 function normalizeHdrType(value) {
   const hdrType = String(value || "").trim();
   if (!hdrType) return "";
+  const normalized = hdrType
+    .replaceAll("＋", "+")
+    .replace(/[\s._-]/g, "")
+    .toLowerCase();
 
-  if (/^dolbyvision$/i.test(hdrType)) return "DV";
-  if (/^HDR10$/i.test(hdrType)) return "HDR10";
-  if (/^HDR10\+$/i.test(hdrType)) return "HDR10+";
+  if (normalized === "dolbyvision" || normalized === "dv") return "DV";
+  if (normalized === "hdr10") return "HDR10";
+  if (normalized === "hdr10+" || normalized === "hdr10plus") return "HDR10+";
   return "HDR";
 }
 

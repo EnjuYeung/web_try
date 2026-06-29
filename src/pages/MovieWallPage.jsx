@@ -11,6 +11,7 @@ import { compareMoviesByTitle } from "../utils/movies";
 
 export function MovieWallPage({
   onNavigate,
+  onReset,
   searchQuery = "",
   onSearchChange,
   selectedCategories = [],
@@ -145,7 +146,9 @@ export function MovieWallPage({
       <header className="topbar">
         <div className="topbar-main">
           <div className="brand-row">
-            <div className="brand">Juen&apos;s</div>
+            <button className="brand" onClick={onReset} type="button">
+              Juen&apos;s
+            </button>
             <nav aria-label="电影分类筛选" className="category-filters">
               {categoryOptions.map((categoryName) => {
                 const selected = selectedCategories.includes(categoryName);

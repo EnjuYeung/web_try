@@ -44,6 +44,7 @@ export function pickCachedMetadata(movie) {
     codec: movie.codec || "",
     bitrate: movie.bitrate || "",
     hdrType: movie.hdrType || "",
+    dvCustomProfile: movie.dvCustomProfile || "",
     audioFormat: movie.audioFormat || "",
     actors: (movie.actors || []).map(({ imageUrl, ...actor }) => actor)
   };

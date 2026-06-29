@@ -1,5 +1,5 @@
 import path from "node:path";
-import { readMediaBitrate } from "../mediaProbe.js";
+import { readMediaMetadata } from "../mediaProbe.js";
 import { isMetadataCacheFresh, pickCachedMetadata } from "../metadataCache.js";
 import { readNfo } from "../nfo.js";
 import { IMAGE_EXTENSIONS, MEDIA_METADATA_VERSION, VIDEO_EXTENSIONS } from "./constants.js";
@@ -31,10 +31,14 @@ export async function scanMovieFolder(moviePath, category, folderName, options =
     : nfoFile
       ? await readNfo(path.join(moviePath, nfoFile))
       : {};
+  const mediaMetadata =
+    canUseCachedMetadata || !videoFile
+      ? { bitrate: "", hdrType: "", dvCustomProfile: "" }
+      : await readMediaMetadata(path.join(moviePath, videoFile));
   const bitrate =
     canUseCachedMetadata || !videoFile
       ? nfo.bitrate || ""
-      : (await readMediaBitrate(path.join(moviePath, videoFile))) || nfo.bitrate || "";
+      : mediaMetadata.bitrate || nfo.bitrate || "";
   const fallback = parseFolderName(folderName);
   const imageSignature = await buildImageSignature(moviePath, files);
   const canReuseMediaSelection =
@@ -73,7 +77,8 @@ export async function scanMovieFolder(moviePath, category, folderName, options =
     resolution: uppercaseEnglish(nfo.resolution || ""),
     codec: uppercaseEnglish(nfo.codec || ""),
     bitrate,
-    hdrType: uppercaseEnglish(nfo.hdrType || ""),
+    hdrType: uppercaseEnglish(mediaMetadata.hdrType || nfo.hdrType || ""),
+    dvCustomProfile: mediaMetadata.dvCustomProfile || nfo.dvCustomProfile || "",
     audioFormat: nfo.audioFormat || "",
     actors: nfo.actors || [],
     mediaMetadataVersion: MEDIA_METADATA_VERSION,

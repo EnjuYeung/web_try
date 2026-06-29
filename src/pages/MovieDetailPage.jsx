@@ -52,7 +52,7 @@ export function MovieDetailPage({ movieId, onBack }) {
   const technicalMetadata = [
     metadataText("resolution", movie.resolution),
     metadataText("bitrate", movie.bitrate),
-    metadataText("hdrType", movie.hdrType),
+    metadataText("hdrType", formatHdrType(movie)),
     metadataText("audioFormat", movie.audioFormat)
   ].filter(Boolean);
   const isBluRaySource = matchesBluRaySource(movie.source);
@@ -105,6 +105,14 @@ export function MovieDetailPage({ movieId, onBack }) {
 
 function metadataText(key, value) {
   return value ? { key, content: value } : null;
+}
+
+function formatHdrType(movie) {
+  const hdrType = String(movie?.hdrType || "").trim();
+  if (hdrType !== "DV") return hdrType;
+
+  const dvCustomProfile = String(movie?.dvCustomProfile || "").trim();
+  return dvCustomProfile ? `${hdrType}${dvCustomProfile}` : hdrType;
 }
 
 function buildActorKeys(actors) {
