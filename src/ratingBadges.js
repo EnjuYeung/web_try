@@ -60,39 +60,35 @@ const TAIWAN_BADGES = {
   "18+": taiwan18Plus
 };
 
+const DIRECT_BADGES = {
+  PG: { src: westernPG, group: "western" },
+  "PG-13": { src: westernPG13, group: "western" },
+  R: { src: westernR, group: "western" },
+  "NC-17": { src: westernNC17, group: "western" },
+  PG12: { src: japanPG12, group: "japan" },
+  "R15+": { src: japanR15Plus, group: "japan" },
+  "R18+": { src: japanR18Plus, group: "japan" },
+  ALL: { src: koreaAll, group: "korea" },
+  12: { src: korea12, group: "korea" },
+  15: { src: korea15, group: "korea" },
+  19: { src: korea19, group: "korea" },
+  I: { src: hongKongI, group: "hong-kong" },
+  II: { src: hongKongII, group: "hong-kong" },
+  IIA: { src: hongKongIIA, group: "hong-kong" },
+  IIB: { src: hongKongIIB, group: "hong-kong" },
+  III: { src: hongKongIII, group: "hong-kong" },
+  "0+": { src: taiwan0Plus, group: "taiwan" },
+  "6+": { src: taiwan6Plus, group: "taiwan" },
+  "12+": { src: taiwan12Plus, group: "taiwan" },
+  "15+": { src: taiwan15Plus, group: "taiwan" },
+  "18+": { src: taiwan18Plus, group: "taiwan" }
+};
+
 export function resolveCertificationBadge(movie) {
   const code = normalizeCertification(movie?.certification);
   if (!code) return null;
 
-  const category = String(movie?.category || "");
-
-  if (category === "欧美电影" || category === "其他电影") {
-    return badgeFrom(WESTERN_BADGES, code, "western");
-  }
-
-  if (category === "日韩电影") {
-    return badgeFrom(JAPAN_BADGES, code, "japan") || badgeFrom(KOREA_BADGES, code, "korea");
-  }
-
-  if (category === "港台电影") {
-    return badgeFrom(HONG_KONG_BADGES, code, "hong-kong") || badgeFrom(TAIWAN_BADGES, code, "taiwan");
-  }
-
-  if (category === "动漫电影") {
-    if (code === "G") {
-      return includesJapan(movie?.country) ? badgeFrom(JAPAN_BADGES, code, "japan") : badgeFrom(WESTERN_BADGES, code, "western");
-    }
-
-    return (
-      badgeFrom(JAPAN_BADGES, code, "japan") ||
-      badgeFrom(KOREA_BADGES, code, "korea") ||
-      badgeFrom(HONG_KONG_BADGES, code, "hong-kong") ||
-      badgeFrom(TAIWAN_BADGES, code, "taiwan") ||
-      badgeFrom(WESTERN_BADGES, code, "western")
-    );
-  }
-
-  return null;
+  return code === "G" ? resolveGBadge(movie?.country) : directBadge(code);
 }
 
 function badgeFrom(badges, code, group) {
@@ -100,8 +96,27 @@ function badgeFrom(badges, code, group) {
   return src ? { src, code, group } : null;
 }
 
-function includesJapan(value) {
-  return String(value || "").includes("日本");
+function directBadge(code) {
+  const badge = DIRECT_BADGES[code];
+  return badge ? { ...badge, code } : null;
+}
+
+function resolveGBadge(country) {
+  const value = String(country || "");
+  const japanIndex = value.indexOf("日本");
+  const unitedStatesIndex = value.indexOf("美国");
+  const hasJapan = japanIndex !== -1;
+  const hasUnitedStates = unitedStatesIndex !== -1;
+
+  if (hasJapan && !hasUnitedStates) return badgeFrom(JAPAN_BADGES, "G", "japan");
+  if (hasUnitedStates && !hasJapan) return badgeFrom(WESTERN_BADGES, "G", "western");
+  if (hasJapan && hasUnitedStates) {
+    return japanIndex < unitedStatesIndex
+      ? badgeFrom(JAPAN_BADGES, "G", "japan")
+      : badgeFrom(WESTERN_BADGES, "G", "western");
+  }
+
+  return badgeFrom(WESTERN_BADGES, "G", "western");
 }
 
 function normalizeCertification(value) {
